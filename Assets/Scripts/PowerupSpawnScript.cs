@@ -1,7 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
 
-public class PowerupSpawner : MonoBehaviour
+public class PowerupSpawner : MonoBehaviour, IDifficultyTunable
 {
     // Serialized fields to allow configuration in Unity Inspector
     [System.Serializable]
@@ -28,9 +28,22 @@ public class PowerupSpawner : MonoBehaviour
 
     // Private variables for spawn tracking
     private float nextSpawnTime;
+    private float baseMinSpawnInterval;
+    private float baseMaxSpawnInterval;
+
+    private void Awake()
+    {
+        baseMinSpawnInterval = minSpawnInterval;
+        baseMaxSpawnInterval = maxSpawnInterval;
+    }
 
     private void Start()
     {
+        baseMinSpawnInterval = minSpawnInterval;
+        baseMaxSpawnInterval = maxSpawnInterval;
+
+        DanmakuDDAController.EnsureExists().RegisterTunable(this);
+
         // Initialize the first spawn time
         ResetSpawnTime();
     }
@@ -140,5 +153,12 @@ public class PowerupSpawner : MonoBehaviour
         };
 
         availablePowerups.Add(newPowerupData);
+    }
+
+    public void ApplyDifficulty(DifficultyProfile profile)
+    {
+        float intervalMultiplier = 1f / Mathf.Max(0.25f, profile.powerupSpawnMultiplier);
+        minSpawnInterval = Mathf.Max(0.5f, baseMinSpawnInterval * intervalMultiplier);
+        maxSpawnInterval = Mathf.Max(minSpawnInterval, baseMaxSpawnInterval * intervalMultiplier);
     }
 }

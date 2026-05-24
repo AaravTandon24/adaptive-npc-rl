@@ -5,7 +5,7 @@ using UnityEngine;
 /// This enemy has 10 HP and takes 10 damage per shot.
 /// Does not modify base game scripts.
 /// </summary>
-public class TestEnemyScript : MonoBehaviour
+public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
 {
     [Header("Movement Settings")]
     public float stoppingDistance = 3f;
@@ -35,9 +35,26 @@ public class TestEnemyScript : MonoBehaviour
     private Transform player;
     private TestEnemyHealthScript enemyHealthScript;
     private float currentTimeBtwShots;
+    private float baseFireRate;
+    private float baseMovementSpeed;
+    private float baseBulletSpeed;
+    private float baseSpreadAngle;
+
+    private void Awake()
+    {
+        baseFireRate = fireRate;
+        baseMovementSpeed = movementSpeed;
+        baseBulletSpeed = bulletSpeed;
+        baseSpreadAngle = spreadAngle;
+    }
 
     void Start()
     {
+        baseFireRate = fireRate;
+        baseMovementSpeed = movementSpeed;
+        baseBulletSpeed = bulletSpeed;
+        baseSpreadAngle = spreadAngle;
+
         FindPlayer();
         currentTimeBtwShots = (fireRate > 0f) ? 1f / fireRate : 1f; // guard against zero
         
@@ -51,6 +68,8 @@ public class TestEnemyScript : MonoBehaviour
         // Configure health for testing (10 HP)
         enemyHealthScript.maxHealth = maxHealth;
         enemyHealthScript.currentHealth = maxHealth;
+
+        DanmakuDDAController.EnsureExists().RegisterTunable(this);
     }
 
     void Update()
@@ -95,6 +114,9 @@ public class TestEnemyScript : MonoBehaviour
     /// </summary>
     private void ShootSpread()
     {
+        if (!CanFireEnemyBullet())
+            return;
+
         // Calculate base direction to player
         Vector2 directionToPlayer = (player.position - transform.position).normalized;
         float baseAngle = Mathf.Atan2(directionToPlayer.y, directionToPlayer.x) * Mathf.Rad2Deg;
@@ -117,6 +139,23 @@ public class TestEnemyScript : MonoBehaviour
                 projectileScript.speed = bulletSpeed;
             }
         }
+    }
+
+    public void ApplyDifficulty(DifficultyProfile profile)
+    {
+        fireRate = Mathf.Max(0.05f, baseFireRate * profile.fireRateMultiplier);
+        movementSpeed = Mathf.Max(0.1f, baseMovementSpeed * profile.enemySpeedMultiplier);
+        bulletSpeed = Mathf.Max(0.1f, baseBulletSpeed * profile.bulletSpeedMultiplier);
+        spreadAngle = Mathf.Max(1f, baseSpreadAngle * profile.spreadAngleMultiplier);
+    }
+
+    private bool CanFireEnemyBullet()
+    {
+        if (DanmakuDDAController.Instance == null)
+            return true;
+
+        int activeBullets = GameObject.FindGameObjectsWithTag("Enemy Bullet").Length;
+        return activeBullets < DanmakuDDAController.Instance.CurrentProfile.maxActiveEnemyBullets;
     }
 
     private void OnCollisionEnter2D(Collision2D collision)

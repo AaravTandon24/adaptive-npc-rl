@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class MultiShooterScript : MonoBehaviour
+public class MultiShooterScript : MonoBehaviour, IDifficultyTunable
 {
     public float speed;
     public float stoppingDistance;
@@ -9,13 +9,25 @@ public class MultiShooterScript : MonoBehaviour
     public float startTimeBtwShots;
     public GameObject projectile;
     private Transform player;
+    private float baseSpeed;
+    private float baseStartTimeBtwShots;
     private EnemyHealthScript enemyHealthScript;  // Reference to enemy health
+
+    private void Awake()
+    {
+        baseSpeed = speed;
+        baseStartTimeBtwShots = startTimeBtwShots;
+    }
 
     void Start()
     {
+        baseSpeed = speed;
+        baseStartTimeBtwShots = startTimeBtwShots;
         FindPlayer();
         timeBtwShots = startTimeBtwShots;
         enemyHealthScript = GetComponent<EnemyHealthScript>();  // Get health script from the enemy itself
+
+        DanmakuDDAController.EnsureExists().RegisterTunable(this);
     }
 
     void Update()
@@ -49,8 +61,9 @@ public class MultiShooterScript : MonoBehaviour
             float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
             Quaternion rotation = Quaternion.Euler(0f, 0f, angle - 90f);
 
-            // Instantiate projectile with calculated rotation
-            Instantiate(projectile, transform.position, rotation);
+            if (CanFireEnemyBullet())
+                Instantiate(projectile, transform.position, rotation);
+
             timeBtwShots = startTimeBtwShots;
         }
         else
@@ -86,6 +99,21 @@ public class MultiShooterScript : MonoBehaviour
             else
                 transform.localScale = new Vector3(1, 1, 1);   // Flip left
         }
+    }
+
+    public void ApplyDifficulty(DifficultyProfile profile)
+    {
+        speed = Mathf.Max(0.1f, baseSpeed * profile.enemySpeedMultiplier);
+        startTimeBtwShots = Mathf.Max(0.05f, baseStartTimeBtwShots / profile.fireRateMultiplier);
+    }
+
+    private bool CanFireEnemyBullet()
+    {
+        if (DanmakuDDAController.Instance == null)
+            return true;
+
+        int activeBullets = GameObject.FindGameObjectsWithTag("Enemy Bullet").Length;
+        return activeBullets < DanmakuDDAController.Instance.CurrentProfile.maxActiveEnemyBullets;
     }
 
 

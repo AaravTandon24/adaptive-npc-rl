@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class EnemyScript : MonoBehaviour
+public class EnemyScript : MonoBehaviour, IDifficultyTunable
 {
     public float speed;
     public float stoppingDistance;
@@ -11,14 +11,26 @@ public class EnemyScript : MonoBehaviour
 
     public GameObject projectile;
     private Transform player;
+    private float baseSpeed;
+    private float baseStartTimeBtwShots;
 
     private EnemyHealthScript enemyHealthScript;  // Reference to enemy health
 
+    private void Awake()
+    {
+        baseSpeed = speed;
+        baseStartTimeBtwShots = startTimeBtwShots;
+    }
+
     void Start()
     {
+        baseSpeed = speed;
+        baseStartTimeBtwShots = startTimeBtwShots;
         FindPlayer();
         timeBtwShots = startTimeBtwShots;
         enemyHealthScript = GetComponent<EnemyHealthScript>();  // Get health script from the enemy itself
+
+        DanmakuDDAController.EnsureExists().RegisterTunable(this);
     }
 
     void Update()
@@ -42,7 +54,9 @@ public class EnemyScript : MonoBehaviour
 
         if (timeBtwShots <= 0)
         {
-            Instantiate(projectile, transform.position, Quaternion.identity);
+            if (CanFireEnemyBullet())
+                Instantiate(projectile, transform.position, Quaternion.identity);
+
             timeBtwShots = startTimeBtwShots;
         }
         else
@@ -67,5 +81,20 @@ public class EnemyScript : MonoBehaviour
         {
             player = playerObject.transform;
         }
+    }
+
+    public void ApplyDifficulty(DifficultyProfile profile)
+    {
+        speed = Mathf.Max(0.1f, baseSpeed * profile.enemySpeedMultiplier);
+        startTimeBtwShots = Mathf.Max(0.05f, baseStartTimeBtwShots / profile.fireRateMultiplier);
+    }
+
+    private bool CanFireEnemyBullet()
+    {
+        if (DanmakuDDAController.Instance == null)
+            return true;
+
+        int activeBullets = GameObject.FindGameObjectsWithTag("Enemy Bullet").Length;
+        return activeBullets < DanmakuDDAController.Instance.CurrentProfile.maxActiveEnemyBullets;
     }
 }

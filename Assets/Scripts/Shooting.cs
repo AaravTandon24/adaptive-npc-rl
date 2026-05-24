@@ -14,6 +14,12 @@ public class Shooting : MonoBehaviour
     public float powerupDuration = 5f; // Duration of powerup in seconds
     private bool isPowerupActive = false;
     private Coroutine powerupCoroutine;
+    private PlayerPerformanceTelemetry telemetry;
+
+    private void Start()
+    {
+        telemetry = GetComponent<PlayerPerformanceTelemetry>();
+    }
 
     void Update()
     {
@@ -26,6 +32,12 @@ public class Shooting : MonoBehaviour
 
     void Shoot()
     {
+        if (telemetry == null)
+            telemetry = GetComponent<PlayerPerformanceTelemetry>();
+
+        if (telemetry != null)
+            telemetry.ReportShotFired();
+
         if (!isPowerupActive) { 
             GameObject bullet = Instantiate(bulletPrefab, firePoint.position, firePoint.rotation);
             Rigidbody2D rb = bullet.GetComponent<Rigidbody2D>();

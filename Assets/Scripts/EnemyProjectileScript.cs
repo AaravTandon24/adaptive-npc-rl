@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public class EnemyProjectileScript : MonoBehaviour
+public class EnemyProjectileScript : MonoBehaviour, IDifficultyTunable
 {
     [Header("Projectile Settings")]
     public float speed = 5f;
@@ -9,9 +9,20 @@ public class EnemyProjectileScript : MonoBehaviour
 
     private Vector2 direction;
     private bool hasHit = false;
+    private float baseSpeed;
+
+    private void Awake()
+    {
+        baseSpeed = speed;
+    }
 
     private void Start()
     {
+        baseSpeed = speed;
+
+        if (DanmakuDDAController.Instance != null)
+            DanmakuDDAController.Instance.RegisterTunable(this);
+
         // Use the bullet's initial rotation direction instead of always aiming at player
         // This allows for spread shots from TestEnemyScript
         direction = transform.up.normalized;
@@ -45,5 +56,10 @@ public class EnemyProjectileScript : MonoBehaviour
     private void DestroyProjectile()
     {
         Destroy(gameObject);
+    }
+
+    public void ApplyDifficulty(DifficultyProfile profile)
+    {
+        speed = Mathf.Max(0.1f, baseSpeed * profile.bulletSpeedMultiplier);
     }
 }

@@ -3,7 +3,7 @@ using System.Collections;
 using UnityEngine.Events;
 using UnityEngine.UI;
 
-public class WaveManager : MonoBehaviour
+public class WaveManager : MonoBehaviour, IDifficultyTunable
 {
     public Wave[] waves;
     public Transform[] spawnPoints;  // Array of spawn points
@@ -16,6 +16,7 @@ public class WaveManager : MonoBehaviour
     private int enemiesRemaining = 0;
     private int enemiesSpawned = 0;
     private bool isSpawning = false;
+    private DifficultyProfile difficultyProfile = DifficultyProfile.Default;
 
     public int CurrentWave => currentWaveIndex + 1;
     public int TotalWaves => waves.Length;
@@ -23,6 +24,8 @@ public class WaveManager : MonoBehaviour
 
     void Start()
     {
+        DanmakuDDAController.EnsureExists().RegisterTunable(this);
+
         StartCoroutine(StartWaveSystem());
     }
 
@@ -60,7 +63,7 @@ public class WaveManager : MonoBehaviour
         {
             SpawnEnemy(wave);
             enemiesSpawned++;
-            yield return new WaitForSeconds(wave.spawnInterval);
+            yield return new WaitForSeconds(GetAdjustedSpawnInterval(wave));
         }
 
         isSpawning = false;
@@ -84,6 +87,16 @@ public class WaveManager : MonoBehaviour
         {
             healthScript.OnEnemyDeath += OnEnemyDefeated;
         }
+    }
+
+    public void ApplyDifficulty(DifficultyProfile profile)
+    {
+        difficultyProfile = profile;
+    }
+
+    private float GetAdjustedSpawnInterval(Wave wave)
+    {
+        return Mathf.Max(0.1f, wave.spawnInterval * difficultyProfile.spawnIntervalMultiplier);
     }
 
     void OnEnemyDefeated()

@@ -12,6 +12,13 @@ public class PowerupScript : MonoBehaviour
             {
                 shootingScript.ActivatePowerupMode();
 
+                PlayerPerformanceTelemetry telemetry = collision.GetComponent<PlayerPerformanceTelemetry>();
+                if (telemetry == null && DanmakuDDAController.Instance != null)
+                    telemetry = collision.gameObject.AddComponent<PlayerPerformanceTelemetry>();
+
+                if (telemetry != null)
+                    telemetry.ReportPowerupCollected();
+
                 Destroy(gameObject);
             }
         }

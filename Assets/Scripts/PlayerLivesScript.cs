@@ -15,9 +15,11 @@ public class PlayerLivesScript : MonoBehaviour
     public GameOverScript gameOverScript;
 
     private bool isDead = false;
+    private PlayerPerformanceTelemetry telemetry;
 
     private void Start()
     {
+        telemetry = GetComponent<PlayerPerformanceTelemetry>();
         if (currentHealth <= 0)
         {
             currentHealth = maxHealth; 
@@ -40,6 +42,12 @@ public class PlayerLivesScript : MonoBehaviour
         if (isDead || damage <= 0) return;
 
         currentHealth = Mathf.Max(0, currentHealth - damage);
+        if (telemetry == null)
+            telemetry = GetComponent<PlayerPerformanceTelemetry>();
+
+        if (telemetry != null)
+            telemetry.ReportDamageTaken(damage);
+
         UpdateUI();
 
         if (currentHealth <= 0 && !isDead)
@@ -53,6 +61,12 @@ public class PlayerLivesScript : MonoBehaviour
     {
         if (isDead || health <= 0) return;
         currentHealth += health;
+        if (telemetry == null)
+            telemetry = GetComponent<PlayerPerformanceTelemetry>();
+
+        if (telemetry != null)
+            telemetry.ReportPowerupCollected();
+
         UpdateUI();
     }
 
