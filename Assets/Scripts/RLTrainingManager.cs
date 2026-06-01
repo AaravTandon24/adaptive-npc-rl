@@ -251,6 +251,22 @@ public class RLTrainingManager : MonoBehaviour
         EndEpisode();
     }
 
+    public void ReportPlayerDamageDealt(float damage)
+    {
+        if (damage <= 0f)
+            return;
+
+        playerDamageDealt += damage;
+    }
+
+    public void ReportEnemyDamageDealt(float damage)
+    {
+        if (damage <= 0f)
+            return;
+
+        enemyDamageDealt += damage;
+    }
+
     /// <summary>
     /// Get current player health percentage (0-1)
     /// </summary>

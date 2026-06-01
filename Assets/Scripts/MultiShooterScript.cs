@@ -7,10 +7,12 @@ public class MultiShooterScript : MonoBehaviour, IDifficultyTunable
     public float retreatDistance;
     public float timeBtwShots;
     public float startTimeBtwShots;
+    public float burstSpreadAngle = 24f;
     public GameObject projectile;
     private Transform player;
     private float baseSpeed;
     private float baseStartTimeBtwShots;
+    private int currentBulletsPerBurst = 1;
     private EnemyHealthScript enemyHealthScript;  // Reference to enemy health
 
     private void Awake()
@@ -62,7 +64,7 @@ public class MultiShooterScript : MonoBehaviour, IDifficultyTunable
             Quaternion rotation = Quaternion.Euler(0f, 0f, angle - 90f);
 
             if (CanFireEnemyBullet())
-                Instantiate(projectile, transform.position, rotation);
+                ShootBurst(angle);
 
             timeBtwShots = startTimeBtwShots;
         }
@@ -105,6 +107,7 @@ public class MultiShooterScript : MonoBehaviour, IDifficultyTunable
     {
         speed = Mathf.Max(0.1f, baseSpeed * profile.enemySpeedMultiplier);
         startTimeBtwShots = Mathf.Max(0.05f, baseStartTimeBtwShots / profile.fireRateMultiplier);
+        currentBulletsPerBurst = Mathf.Clamp(Mathf.RoundToInt(profile.bulletCountMultiplier), 1, 5);
     }
 
     private bool CanFireEnemyBullet()
@@ -114,6 +117,20 @@ public class MultiShooterScript : MonoBehaviour, IDifficultyTunable
 
         int activeBullets = GameObject.FindGameObjectsWithTag("Enemy Bullet").Length;
         return activeBullets < DanmakuDDAController.Instance.CurrentProfile.maxActiveEnemyBullets;
+    }
+
+    private void ShootBurst(float baseAngle)
+    {
+        int bulletsToFire = Mathf.Max(1, currentBulletsPerBurst);
+        for (int i = 0; i < bulletsToFire; i++)
+        {
+            if (!CanFireEnemyBullet())
+                return;
+
+            float offset = bulletsToFire == 1 ? 0f : Mathf.Lerp(-burstSpreadAngle / 2f, burstSpreadAngle / 2f, (float)i / (bulletsToFire - 1));
+            Quaternion rotation = Quaternion.Euler(0f, 0f, baseAngle + offset - 90f);
+            Instantiate(projectile, transform.position, rotation);
+        }
     }
 
 

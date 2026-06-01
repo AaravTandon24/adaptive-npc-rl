@@ -136,14 +136,25 @@ public class EnemyAgent : Agent
         // Normalized player HP
         float playerHPnorm = GetPlayerHealthNormalized();
         sensor.AddObservation(playerHPnorm);
+
+        if (DanmakuDDAController.Instance != null)
+        {
+            sensor.AddObservation(DanmakuDDAController.Instance.currentDifficulty);
+            sensor.AddObservation(DanmakuDDAController.Instance.currentPressure);
+        }
+        else
+        {
+            sensor.AddObservation(0.5f);
+            sensor.AddObservation(0f);
+        }
     }
 
     // Called when the model outputs an action. Two continuous actions expected.
     public override void OnActionReceived(ActionBuffers actions)
     {
         // Continuous actions: [0]=horizontal, [1]=vertical (range [-1,1])
-        float moveX = 0f;
-        float moveY = 0f;
+        float moveX = Mathf.Clamp(actions.ContinuousActions[0], -1f, 1f);
+        float moveY = Mathf.Clamp(actions.ContinuousActions[1], -1f, 1f);
 
         Vector2 move = new Vector2(moveX, moveY);
         if (move.sqrMagnitude > 1f) move = move.normalized;

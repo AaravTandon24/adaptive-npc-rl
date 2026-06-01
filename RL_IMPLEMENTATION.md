@@ -15,12 +15,12 @@ The implemented RL system is separate from the standard enemy AI scripts, so tra
 Implemented features:
 
 - Collects enemy position, player position, distance to player, normalized enemy health, and normalized player health.
-- Defines a continuous action space intended for horizontal and vertical movement.
+- Defines a continuous action space for horizontal and vertical movement and applies those actions to `Rigidbody2D` velocity.
 - Applies rewards for survival, damaging the player, winning, taking damage, and dying.
 - Supports heuristic testing through keyboard movement input.
 - Integrates with `TestEnemyHealthScript`, `EnemyHealthScript`, and `PlayerLivesScript`.
 
-Current limitation: `OnActionReceived` currently declares `moveX` and `moveY` as `0f` instead of reading from `actions.ContinuousActions`. This means the policy output is not yet applied to movement until those values are wired in.
+Current limitation: the agent still needs Unity `Behavior Parameters`, a `DecisionRequester`, and a PPO training configuration before a trained model can be produced and assigned.
 
 ## Episode Management
 
@@ -62,7 +62,6 @@ This DDA system is not itself a trained RL agent. It is a runtime controller tha
 
 ## Next RL Tasks
 
-- Wire `OnActionReceived` to `actions.ContinuousActions[0]` and `[1]`.
 - Connect projectile hit events consistently to `EnemyAgent.RewardForHit`.
 - Add ML-Agents behavior parameters in the Unity scene or prefab.
 - Create a training configuration YAML for PPO or SAC.

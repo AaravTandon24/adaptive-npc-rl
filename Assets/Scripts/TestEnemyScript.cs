@@ -32,13 +32,19 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
     [Tooltip("Angle spread for 3-shot burst (degrees)")]
     public float spreadAngle = 30f;
 
+    [Tooltip("Base number of bullets fired per burst")]
+    public int baseBulletsPerBurst = 3;
+
     private Transform player;
     private TestEnemyHealthScript enemyHealthScript;
+    private EnemyAgent enemyAgent;
+    private RLTrainingManager trainingManager;
     private float currentTimeBtwShots;
     private float baseFireRate;
     private float baseMovementSpeed;
     private float baseBulletSpeed;
     private float baseSpreadAngle;
+    private int currentBulletsPerBurst;
 
     private void Awake()
     {
@@ -46,6 +52,8 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
         baseMovementSpeed = movementSpeed;
         baseBulletSpeed = bulletSpeed;
         baseSpreadAngle = spreadAngle;
+        baseBulletsPerBurst = 3;
+        currentBulletsPerBurst = baseBulletsPerBurst;
     }
 
     void Start()
@@ -54,6 +62,8 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
         baseMovementSpeed = movementSpeed;
         baseBulletSpeed = bulletSpeed;
         baseSpreadAngle = spreadAngle;
+        baseBulletsPerBurst = 3;
+        currentBulletsPerBurst = baseBulletsPerBurst;
 
         FindPlayer();
         currentTimeBtwShots = (fireRate > 0f) ? 1f / fireRate : 1f; // guard against zero
@@ -68,6 +78,8 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
         // Configure health for testing (10 HP)
         enemyHealthScript.maxHealth = maxHealth;
         enemyHealthScript.currentHealth = maxHealth;
+        enemyAgent = GetComponent<EnemyAgent>();
+        trainingManager = FindObjectOfType<RLTrainingManager>();
 
         DanmakuDDAController.EnsureExists().RegisterTunable(this);
     }
@@ -121,11 +133,11 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
         Vector2 directionToPlayer = (player.position - transform.position).normalized;
         float baseAngle = Mathf.Atan2(directionToPlayer.y, directionToPlayer.x) * Mathf.Rad2Deg;
 
-        // Fire 3 bullets with spread
-        float[] angleOffsets = { -spreadAngle / 2f, 0f, spreadAngle / 2f };
+        int bulletsToFire = Mathf.Max(1, currentBulletsPerBurst);
         
-        foreach (float offset in angleOffsets)
+        for (int i = 0; i < bulletsToFire; i++)
         {
+            float offset = bulletsToFire == 1 ? 0f : Mathf.Lerp(-spreadAngle / 2f, spreadAngle / 2f, (float)i / (bulletsToFire - 1));
             float bulletAngle = baseAngle + offset;
             Quaternion bulletRotation = Quaternion.Euler(0f, 0f, bulletAngle - 90f); // -90 to align with Unity's up direction
             
@@ -147,6 +159,7 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
         movementSpeed = Mathf.Max(0.1f, baseMovementSpeed * profile.enemySpeedMultiplier);
         bulletSpeed = Mathf.Max(0.1f, baseBulletSpeed * profile.bulletSpeedMultiplier);
         spreadAngle = Mathf.Max(1f, baseSpreadAngle * profile.spreadAngleMultiplier);
+        currentBulletsPerBurst = Mathf.Clamp(Mathf.RoundToInt(baseBulletsPerBurst * profile.bulletCountMultiplier), 3, 6);
     }
 
     private bool CanFireEnemyBullet()
@@ -163,7 +176,14 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
         if (collision.gameObject.CompareTag("Player Bullet"))
         {
             // Take 10 damage per shot for testing
-            enemyHealthScript.TakeDamage(damagePerShot);
+            if (enemyAgent != null)
+                enemyAgent.TakeDamage(damagePerShot);
+            else
+                enemyHealthScript.TakeDamage(damagePerShot);
+
+            if (trainingManager != null)
+                trainingManager.ReportPlayerDamageDealt(damagePerShot);
+
             Destroy(collision.gameObject);
         }
     }
