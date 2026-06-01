@@ -168,13 +168,7 @@ public class EnemyAgent : Agent
         // Small positive reward each step to encourage survival/active behavior
         AddReward(survivalReward);
 
-        // Detect damage taken this step and apply penalty
         float current = ReadEnemyHealth();
-        if (current < previousHealth)
-        {
-            float dmgTaken = previousHealth - current;
-            AddReward(-damagePenalty * dmgTaken);
-        }
         previousHealth = current;
 
         // Check terminal conditions locally as safety (environment manager may also trigger)

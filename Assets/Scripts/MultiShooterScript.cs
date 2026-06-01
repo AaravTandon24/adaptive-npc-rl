@@ -34,6 +34,9 @@ public class MultiShooterScript : MonoBehaviour, IDifficultyTunable
 
     void Update()
     {
+        if (GetComponent<EnemyAgent>() != null && GetComponent<EnemyAgent>().enabled)
+            return;
+
         if (player == null)
         {
             FindPlayer();

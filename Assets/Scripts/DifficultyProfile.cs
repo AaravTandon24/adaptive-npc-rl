@@ -46,8 +46,13 @@ public struct DifficultyProfile
         profile.spawnIntervalMultiplier = Mathf.Lerp(1.55f, 0.65f, difficulty);
         profile.enemySpeedMultiplier = Mathf.Lerp(0.75f, 1.35f, difficulty);
         profile.powerupSpawnMultiplier = Mathf.Lerp(0.75f, 1.55f, 1f - difficulty);
-        float bulletCountDifficulty = Mathf.InverseLerp(0.5f, 1f, difficulty);
+
+        // Delay bullet-count increases: scale only when difficulty is very high to avoid early spam.
+        // Use a tighter threshold and a smooth power curve so increases are gradual near top-end.
+        float raw = Mathf.InverseLerp(0.9f, 1f, difficulty); // starts scaling at difficulty >= 0.9
+        float bulletCountDifficulty = Mathf.Pow(Mathf.Clamp01(raw), 2f); // ease-in curve
         profile.bulletCountMultiplier = Mathf.Lerp(1f, 2f, bulletCountDifficulty);
+
         profile.maxActiveEnemyBullets = maxBullets;
         profile.Clamp();
         return profile;

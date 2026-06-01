@@ -86,6 +86,9 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
 
     void Update()
     {
+        if (GetComponent<EnemyAgent>() != null && GetComponent<EnemyAgent>().enabled)
+            return;
+
         if (player == null)
         {
             FindPlayer();
@@ -173,20 +176,20 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
 
     private void OnCollisionEnter2D(Collision2D collision)
     {
-        if (collision.gameObject.CompareTag("Player Bullet"))
-        {
-            // Take 10 damage per shot for testing
-            if (enemyAgent != null)
-                enemyAgent.TakeDamage(damagePerShot);
-            else
-                enemyHealthScript.TakeDamage(damagePerShot);
+    if (collision.gameObject.CompareTag("Player Bullet"))
+    {
+        // Take 10 damage per shot for testing
+        if (enemyAgent != null)
+            enemyAgent.TakeDamage(damagePerShot);
+        else
+            enemyHealthScript.TakeDamage(damagePerShot);
 
-            if (trainingManager != null)
-                trainingManager.ReportPlayerDamageDealt(damagePerShot);
+        if (trainingManager != null)
+            trainingManager.ReportPlayerDamageDealt(damagePerShot);
 
-            Destroy(collision.gameObject);
-        }
+        Destroy(collision.gameObject);
     }
+}
 
     private void FindPlayer()
     {

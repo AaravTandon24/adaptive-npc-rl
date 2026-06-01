@@ -13,6 +13,8 @@ public class EnemyProjectileScript : MonoBehaviour, IDifficultyTunable
     private RLTrainingManager trainingManager;
     private EnemyAgent enemyAgent;
 
+    public EnemyAgent owner; // assign when instantiating the projectile
+
     private void Awake()
     {
         baseSpeed = speed;
@@ -26,7 +28,9 @@ public class EnemyProjectileScript : MonoBehaviour, IDifficultyTunable
             DanmakuDDAController.Instance.RegisterTunable(this);
 
         trainingManager = FindObjectOfType<RLTrainingManager>();
-        enemyAgent = FindObjectOfType<EnemyAgent>();
+
+        // Prefer explicitly assigned owner, otherwise search parent
+        enemyAgent = owner != null ? owner : GetComponentInParent<EnemyAgent>();
 
         // Use the bullet's initial rotation direction instead of always aiming at player
         // This allows for spread shots from TestEnemyScript

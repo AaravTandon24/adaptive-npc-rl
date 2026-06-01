@@ -1,8 +1,10 @@
+using System.IO;
 using UnityEngine;
 
 /// <summary>
 /// GameManager specifically designed for Reinforcement Learning training environment.
 /// Manages episodes between Player and Enemy without scene reloads.
+/// Extended to record episode-level metrics for training validation.
 /// </summary>
 public class RLTrainingManager : MonoBehaviour
 {
@@ -41,8 +43,23 @@ public class RLTrainingManager : MonoBehaviour
     private TestEnemyHealthScript enemyHealthScript;
     private bool episodeActive = false;
 
+    // DDA sampling for episode averages
+    private float cumulativeDifficultySum = 0f;
+    private float cumulativePressureSum = 0f;
+    private int ddaSampleCount = 0;
+
+    // Metrics CSV
+    private string metricsFilePath;
+
     void Start()
     {
+        // Prepare metrics file path in project root
+        metricsFilePath = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "training_metrics.csv"));
+        if (!File.Exists(metricsFilePath))
+        {
+            File.WriteAllText(metricsFilePath, "episode,episode_reward,player_survival_time,player_damage_dealt,enemy_damage_dealt,win,avg_difficulty,avg_pressure\n");
+        }
+
         InitializeEpisode();
     }
 
@@ -54,6 +71,14 @@ public class RLTrainingManager : MonoBehaviour
         // Update episode timer
         currentEpisodeTime += Time.deltaTime;
         timeSurvived = currentEpisodeTime;
+
+        // Sample DDA state each Update for episode averaging
+        if (DanmakuDDAController.Instance != null)
+        {
+            cumulativeDifficultySum += DanmakuDDAController.Instance.currentDifficulty;
+            cumulativePressureSum += DanmakuDDAController.Instance.currentPressure;
+            ddaSampleCount++;
+        }
 
         // Check end conditions
         CheckEpisodeEndConditions();
@@ -142,7 +167,7 @@ public class RLTrainingManager : MonoBehaviour
         episodeActive = false;
         episodeCount++;
 
-        // Log episode statistics
+        // Log episode statistics and write metrics
         LogEpisodeStats();
 
         // Reset for next episode
@@ -162,6 +187,11 @@ public class RLTrainingManager : MonoBehaviour
         playerDamageDealt = 0f;
         enemyDamageDealt = 0f;
         timeSurvived = 0f;
+
+        // Reset DDA sampling
+        cumulativeDifficultySum = 0f;
+        cumulativePressureSum = 0f;
+        ddaSampleCount = 0;
 
         // Destroy all projectiles FIRST before resetting entities
         DestroyAllProjectiles();
@@ -226,21 +256,51 @@ public class RLTrainingManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Log episode statistics to console
+    /// Log episode statistics to console and append CSV for external analysis.
     /// </summary>
     private void LogEpisodeStats()
     {
+        // Compute average DDA sampling for the episode
+        float avgDifficulty = ddaSampleCount > 0 ? cumulativeDifficultySum / ddaSampleCount : (DanmakuDDAController.Instance != null ? DanmakuDDAController.Instance.currentDifficulty : 0f);
+        float avgPressure = ddaSampleCount > 0 ? cumulativePressureSum / ddaSampleCount : (DanmakuDDAController.Instance != null ? DanmakuDDAController.Instance.currentPressure : 0f);
+
+        // Try to obtain the enemy agent cumulative reward (if present)
+        float episodeReward = 0f;
+        bool enemyDefeated = enemyHealthScript != null && enemyHealthScript.currentHealth <= 0f;
+        bool playerDefeated = playerHealthScript != null && playerHealthScript.currentHealth <= 0f;
+
+        if (enemy != null)
+        {
+            var agent = enemy.GetComponent<EnemyAgent>();
+            if (agent != null)
+            {
+                episodeReward = agent.GetCumulativeReward();
+            }
+        }
+
         Debug.Log($"=== Episode {episodeCount} Stats ===");
         Debug.Log($"Duration: {timeSurvived:F2} seconds");
         Debug.Log($"Player Damage Dealt: {playerDamageDealt:F2}");
         Debug.Log($"Enemy Damage Dealt: {enemyDamageDealt:F2}");
-        
         float playerFinalHP = (playerHealthScript != null) ? playerHealthScript.currentHealth : 0f;
         float enemyFinalHP = (enemyHealthScript != null) ? enemyHealthScript.currentHealth : 0f;
-        
         Debug.Log($"Player Final HP: {playerFinalHP}");
         Debug.Log($"Enemy Final HP: {enemyFinalHP}");
+        Debug.Log($"Episode Reward (agent): {episodeReward:F4}");
+        Debug.Log($"Win (enemy defeated): {(enemyDefeated ? 1 : 0)}");
+        Debug.Log($"Avg Difficulty: {avgDifficulty:F3}, Avg Pressure: {avgPressure:F3}");
         Debug.Log("========================");
+
+        // Append CSV line
+        try
+        {
+            string line = $"{episodeCount},{episodeReward:F4},{timeSurvived:F2},{playerDamageDealt:F2},{enemyDamageDealt:F2},{(enemyDefeated ? 1 : 0)},{avgDifficulty:F3},{avgPressure:F3}\n";
+            File.AppendAllText(metricsFilePath, line);
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogWarning($"Failed to write metrics CSV: {ex.Message}");
+        }
     }
 
     /// <summary>
