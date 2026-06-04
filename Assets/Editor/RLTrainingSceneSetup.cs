@@ -153,21 +153,20 @@ public static class RLTrainingSceneSetup
                 latestDataFile = dataFiles[i];
         }
 
-        string targetPath = Path.Combine(assetDirectory, Path.GetFileName(latestDataFile));
+        string latestFileName = Path.GetFileName(latestDataFile);
+        CopyExternalWeightsAlias(latestDataFile, assetDirectory, latestFileName);
+        CopyExternalWeightsAlias(latestDataFile, assetDirectory, latestFileName.Replace("EnemyAgent", "enemy-agent"));
+        CopyExternalWeightsAlias(latestDataFile, assetDirectory, latestFileName.Replace("50029", "50028"));
+        CopyExternalWeightsAlias(latestDataFile, assetDirectory, latestFileName.Replace("EnemyAgent", "enemy-agent").Replace("50029", "50028"));
+    }
+
+    private static void CopyExternalWeightsAlias(string sourcePath, string assetDirectory, string targetFileName)
+    {
+        string targetPath = Path.Combine(assetDirectory, targetFileName);
         if (File.Exists(targetPath))
             FileUtil.DeleteFileOrDirectory(targetPath);
 
-        FileUtil.CopyFileOrDirectory(latestDataFile, targetPath);
+        FileUtil.CopyFileOrDirectory(sourcePath, targetPath);
         AssetDatabase.ImportAsset(targetPath, ImportAssetOptions.ForceUpdate);
-
-        string sentisCompatibilityPath = Path.Combine(assetDirectory, Path.GetFileName(latestDataFile).Replace("EnemyAgent", "enemy-agent"));
-        if (sentisCompatibilityPath != targetPath)
-        {
-            if (File.Exists(sentisCompatibilityPath))
-                FileUtil.DeleteFileOrDirectory(sentisCompatibilityPath);
-
-            FileUtil.CopyFileOrDirectory(latestDataFile, sentisCompatibilityPath);
-            AssetDatabase.ImportAsset(sentisCompatibilityPath, ImportAssetOptions.ForceUpdate);
-        }
     }
 }
