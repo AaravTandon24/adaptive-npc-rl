@@ -159,5 +159,15 @@ public static class RLTrainingSceneSetup
 
         FileUtil.CopyFileOrDirectory(latestDataFile, targetPath);
         AssetDatabase.ImportAsset(targetPath, ImportAssetOptions.ForceUpdate);
+
+        string sentisCompatibilityPath = Path.Combine(assetDirectory, Path.GetFileName(latestDataFile).Replace("EnemyAgent", "enemy-agent"));
+        if (sentisCompatibilityPath != targetPath)
+        {
+            if (File.Exists(sentisCompatibilityPath))
+                FileUtil.DeleteFileOrDirectory(sentisCompatibilityPath);
+
+            FileUtil.CopyFileOrDirectory(latestDataFile, sentisCompatibilityPath);
+            AssetDatabase.ImportAsset(sentisCompatibilityPath, ImportAssetOptions.ForceUpdate);
+        }
     }
 }
