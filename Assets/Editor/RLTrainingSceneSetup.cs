@@ -12,6 +12,7 @@ public static class RLTrainingSceneSetup
     private const string TrainingScenePath = "Assets/Scenes/Testing.unity";
     private const string TrainingBuildPath = "Builds/Training/adaptive-npc-rl-training.exe";
     private const string TrainedModelSourcePath = "results/enemy_agent_ppo_initial/EnemyAgent.onnx";
+    private const string TrainedModelCheckpointDirectory = "results/enemy_agent_ppo_initial/EnemyAgent";
     private const string TrainedModelAssetPath = "Assets/ML-Agents/Models/EnemyAgent.onnx";
     private const string BehaviorName = "EnemyAgent";
     private const int VectorObservationSize = 9;
@@ -111,6 +112,8 @@ public static class RLTrainingSceneSetup
             FileUtil.DeleteFileOrDirectory(TrainedModelAssetPath);
 
         FileUtil.CopyFileOrDirectory(TrainedModelSourcePath, TrainedModelAssetPath);
+        CopyLatestExternalWeights(assetDirectory);
+
         AssetDatabase.ImportAsset(TrainedModelAssetPath, ImportAssetOptions.ForceUpdate);
 
         ModelAsset model = AssetDatabase.LoadAssetAtPath<ModelAsset>(TrainedModelAssetPath);
@@ -132,5 +135,29 @@ public static class RLTrainingSceneSetup
         EditorSceneManager.SaveOpenScenes();
 
         Debug.Log($"Imported and assigned PPO model: {TrainedModelAssetPath}");
+    }
+
+    private static void CopyLatestExternalWeights(string assetDirectory)
+    {
+        if (!Directory.Exists(TrainedModelCheckpointDirectory))
+            return;
+
+        string[] dataFiles = Directory.GetFiles(TrainedModelCheckpointDirectory, "*.onnx.data");
+        if (dataFiles.Length == 0)
+            return;
+
+        string latestDataFile = dataFiles[0];
+        for (int i = 1; i < dataFiles.Length; i++)
+        {
+            if (File.GetLastWriteTimeUtc(dataFiles[i]) > File.GetLastWriteTimeUtc(latestDataFile))
+                latestDataFile = dataFiles[i];
+        }
+
+        string targetPath = Path.Combine(assetDirectory, Path.GetFileName(latestDataFile));
+        if (File.Exists(targetPath))
+            FileUtil.DeleteFileOrDirectory(targetPath);
+
+        FileUtil.CopyFileOrDirectory(latestDataFile, targetPath);
+        AssetDatabase.ImportAsset(targetPath, ImportAssetOptions.ForceUpdate);
     }
 }
