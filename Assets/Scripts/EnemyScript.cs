@@ -15,6 +15,7 @@ public class EnemyScript : MonoBehaviour, IDifficultyTunable
     private float baseStartTimeBtwShots;
 
     private EnemyHealthScript enemyHealthScript;  // Reference to enemy health
+    private EnemyAgent enemyAgent;
 
     private void Awake()
     {
@@ -29,6 +30,7 @@ public class EnemyScript : MonoBehaviour, IDifficultyTunable
         FindPlayer();
         timeBtwShots = startTimeBtwShots;
         enemyHealthScript = GetComponent<EnemyHealthScript>();  // Get health script from the enemy itself
+        enemyAgent = GetComponent<EnemyAgent>();
 
         DanmakuDDAController.EnsureExists().RegisterTunable(this);
     }
@@ -55,7 +57,14 @@ public class EnemyScript : MonoBehaviour, IDifficultyTunable
         if (timeBtwShots <= 0)
         {
             if (CanFireEnemyBullet())
-                Instantiate(projectile, transform.position, Quaternion.identity);
+            {
+                GameObject bullet = Instantiate(projectile, transform.position, Quaternion.identity);
+                EnemyProjectileScript projectileScript = bullet.GetComponent<EnemyProjectileScript>();
+                if (projectileScript != null)
+                {
+                    projectileScript.enemyAgent = enemyAgent;
+                }
+            }
 
             timeBtwShots = startTimeBtwShots;
         }

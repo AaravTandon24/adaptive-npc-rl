@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using UnityEngine;
@@ -47,8 +48,24 @@ public class RLTrainingManager : MonoBehaviour
     private PlayerLivesScript playerHealthScript;
     private TestEnemyHealthScript enemyHealthScript;
     private EnemyAgent enemyAgent;
+    private TestEnemyScript testEnemyScript;
+    private PlayerPerformanceTelemetry playerTelemetry;
     private bool episodeActive = false;
     private string lastEpisodeOutcome = "unknown";
+
+    // New telemetry counters for enemy
+    private int enemyShotsFired = 0;
+    private int enemyShotsHit = 0;
+
+    // Snapshot of active difficulty parameters at episode START
+    private float start_fireRate = 0f;
+    private float start_bulletSpeed = 0f;
+    private float start_spreadAngle = 0f;
+    private float start_enemyMoveSpeed = 0f;
+
+    // Rolling outcomes for last N episodes for win rate
+    private readonly Queue<int> recentOutcomes = new Queue<int>();
+    private const int RollingWindowSize = 10;
 
     void Start()
     {
@@ -88,6 +105,8 @@ public class RLTrainingManager : MonoBehaviour
         playerHealthScript = player.GetComponent<PlayerLivesScript>();
         enemyHealthScript = enemy.GetComponent<TestEnemyHealthScript>();
         enemyAgent = enemy.GetComponent<EnemyAgent>();
+        testEnemyScript = enemy.GetComponent<TestEnemyScript>();
+        playerTelemetry = player.GetComponent<PlayerPerformanceTelemetry>();
 
         if (playerHealthScript == null)
         {
@@ -115,6 +134,7 @@ public class RLTrainingManager : MonoBehaviour
         if (enemy == null)
         {
             Debug.LogWarning("Enemy was destroyed! Episode ending...");
+            lastEpisodeOutcome = "player_defeated";
             EndEpisode();
             return;
         }
@@ -158,6 +178,11 @@ public class RLTrainingManager : MonoBehaviour
         // Log episode statistics
         LogEpisodeStats();
 
+        if (DanmakuDDAController.Instance != null)
+        {
+            DanmakuDDAController.Instance.OnEpisodeEnd(episodeCount);
+        }
+
         if (enemyAgent != null)
             enemyAgent.EndEpisode();
 
@@ -179,6 +204,10 @@ public class RLTrainingManager : MonoBehaviour
         playerDamageDealt = 0f;
         enemyDamageDealt = 0f;
         timeSurvived = 0f;
+
+        // Reset enemy telemetry counters
+        enemyShotsFired = 0;
+        enemyShotsHit = 0;
 
         // Destroy all projectiles FIRST before resetting entities
         DestroyAllProjectiles();
@@ -213,6 +242,27 @@ public class RLTrainingManager : MonoBehaviour
             
             if (!enemy.activeInHierarchy)
                 enemy.SetActive(true);
+
+            // Snapshot active difficulty parameters at episode START
+            if (testEnemyScript != null)
+            {
+                start_fireRate = testEnemyScript.fireRate;
+                start_bulletSpeed = testEnemyScript.bulletSpeed;
+                start_spreadAngle = testEnemyScript.spreadAngle;
+                start_enemyMoveSpeed = testEnemyScript.movementSpeed;
+            }
+            else
+            {
+                // Fallback to DDA controller profile if present
+                if (DanmakuDDAController.Instance != null)
+                {
+                    var p = DanmakuDDAController.Instance.CurrentProfile;
+                    start_fireRate = p.fireRateMultiplier;
+                    start_bulletSpeed = p.bulletSpeedMultiplier;
+                    start_spreadAngle = p.spreadAngleMultiplier;
+                    start_enemyMoveSpeed = p.enemySpeedMultiplier;
+                }
+            }
         }
         else
         {
@@ -243,23 +293,50 @@ public class RLTrainingManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Log episode statistics to console
+    /// Log episode statistics to console and CSV
     /// </summary>
     private void LogEpisodeStats()
     {
+        float playerFinalHP = (playerHealthScript != null) ? playerHealthScript.currentHealth : 0f;
+        float enemyFinalHP = (enemyHealthScript != null) ? enemyHealthScript.currentHealth : 0f;
+
         Debug.Log($"=== Episode {episodeCount} Stats ===");
         Debug.Log($"Duration: {timeSurvived:F2} seconds");
         Debug.Log($"Player Damage Dealt: {playerDamageDealt:F2}");
         Debug.Log($"Enemy Damage Dealt: {enemyDamageDealt:F2}");
-        
-        float playerFinalHP = (playerHealthScript != null) ? playerHealthScript.currentHealth : 0f;
-        float enemyFinalHP = (enemyHealthScript != null) ? enemyHealthScript.currentHealth : 0f;
-        
         Debug.Log($"Player Final HP: {playerFinalHP}");
         Debug.Log($"Enemy Final HP: {enemyFinalHP}");
         Debug.Log("========================");
 
         WriteEpisodeCsv(playerFinalHP, enemyFinalHP);
+    }
+
+    private int MapOutcomeToInt(string outcome)
+    {
+        switch (outcome)
+        {
+            case "player_defeated": return 0;
+            case "enemy_defeated": return 1;
+            case "timeout": return 2;
+            default: return 2;
+        }
+    }
+
+    private void AddRecentOutcome(int numericOutcome)
+    {
+        // Only consider wins (1) vs not-wins (0) for rolling win rate. Map timeout as 0.
+        int win = (numericOutcome == 1) ? 1 : 0;
+        recentOutcomes.Enqueue(win);
+        while (recentOutcomes.Count > RollingWindowSize)
+            recentOutcomes.Dequeue();
+    }
+
+    private float GetRollingWinRate()
+    {
+        if (recentOutcomes.Count == 0) return 0f;
+        int sum = 0;
+        foreach (int v in recentOutcomes) sum += v;
+        return (float)sum / recentOutcomes.Count;
     }
 
     private void WriteEpisodeCsv(float playerFinalHP, float enemyFinalHP)
@@ -273,15 +350,65 @@ public class RLTrainingManager : MonoBehaviour
         string path = Path.Combine(directory, csvFileName);
         bool writeHeader = !File.Exists(path);
 
+        // Read player telemetry totals (shots / hits / damage)
+        int playerShots = playerTelemetry != null ? playerTelemetry.TotalShotsFired : 0;
+        int playerHits = playerTelemetry != null ? playerTelemetry.TotalShotsHit : 0;
+        float playerDamage = playerDamageDealt;
+        float playerDamageTaken = enemyDamageDealt;
+
+        // Enemy telemetry
+        int enemyShots = enemyShotsFired;
+        int enemyHits = enemyShotsHit;
+        float enemyDamage = enemyDamageDealt;
+
+        // Outcome mapping
+        int outcomeNumeric = MapOutcomeToInt(lastEpisodeOutcome);
+
+        // Derived metrics
+        float playerAccuracy = playerShots > 0 ? (float)playerHits / playerShots : 0f;
+        float enemyAccuracy = enemyShots > 0 ? (float)enemyHits / enemyShots : 0f;
+        float damageRatio = Mathf.Approximately(playerDamageTaken, 0f) ? (playerDamage > 0f ? float.PositiveInfinity : 0f) : playerDamage / playerDamageTaken;
+
+        // Update rolling outcomes and compute balance score
+        AddRecentOutcome(outcomeNumeric);
+        float rollingWinRate = GetRollingWinRate();
+        float challengeBalanceScore = 1f - Mathf.Abs(rollingWinRate - 0.5f);
+
         float pressure = DanmakuDDAController.Instance != null ? DanmakuDDAController.Instance.currentPressure : 0f;
         float difficulty = DanmakuDDAController.Instance != null ? DanmakuDDAController.Instance.currentDifficulty : 0f;
         int activeEnemyBullets = GameObject.FindGameObjectsWithTag("Enemy Bullet").Length;
+
+        // Active difficulty values were snapshotted at episode start
+        float fireRateValue = start_fireRate;
+        float bulletSpeedValue = start_bulletSpeed;
+        float spreadAngleValue = start_spreadAngle;
+        float enemyMoveSpeedValue = start_enemyMoveSpeed;
 
         using (StreamWriter writer = new StreamWriter(path, true))
         {
             if (writeHeader)
             {
-                writer.WriteLine("episode,outcome,survival_time,player_damage_dealt,enemy_damage_dealt,player_final_hp,enemy_final_hp,pressure,difficulty,active_enemy_bullets");
+                writer.WriteLine(string.Join(",",
+                    "episode",
+                    "outcome",
+                    "survival_time",
+                    "player_damage_dealt",
+                    "enemy_damage_dealt",
+                    "player_final_hp",
+                    "enemy_final_hp",
+                    "pressure",
+                    "difficulty",
+                    "active_enemy_bullets",
+                    "shots_fired_player",
+                    "shots_hit_player",
+                    "player_accuracy",
+                    "shots_fired_enemy",
+                    "shots_hit_enemy",
+                    "enemy_accuracy",
+                    "damage_ratio",
+                    "rolling_win_rate",
+                    "challenge_balance_score"
+                ));
             }
 
             writer.WriteLine(string.Join(",",
@@ -294,7 +421,17 @@ public class RLTrainingManager : MonoBehaviour
                 enemyFinalHP.ToString("F3", CultureInfo.InvariantCulture),
                 pressure.ToString("F3", CultureInfo.InvariantCulture),
                 difficulty.ToString("F3", CultureInfo.InvariantCulture),
-                activeEnemyBullets.ToString(CultureInfo.InvariantCulture)));
+                activeEnemyBullets.ToString(CultureInfo.InvariantCulture),
+                playerShots.ToString(CultureInfo.InvariantCulture),
+                playerHits.ToString(CultureInfo.InvariantCulture),
+                playerAccuracy.ToString("F3", CultureInfo.InvariantCulture),
+                enemyShots.ToString(CultureInfo.InvariantCulture),
+                enemyHits.ToString(CultureInfo.InvariantCulture),
+                enemyAccuracy.ToString("F3", CultureInfo.InvariantCulture),
+                float.IsInfinity(damageRatio) ? "inf" : damageRatio.ToString("F3", CultureInfo.InvariantCulture),
+                rollingWinRate.ToString("F3", CultureInfo.InvariantCulture),
+                challengeBalanceScore.ToString("F3", CultureInfo.InvariantCulture)
+            ));
         }
     }
 
@@ -320,6 +457,17 @@ public class RLTrainingManager : MonoBehaviour
             return;
 
         enemyDamageDealt += damage;
+    }
+
+    // New methods for enemy shot telemetry
+    public void ReportEnemyShotFired()
+    {
+        enemyShotsFired++;
+    }
+
+    public void ReportEnemyShotHit()
+    {
+        enemyShotsHit++;
     }
 
     /// <summary>

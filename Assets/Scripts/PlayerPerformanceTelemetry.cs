@@ -124,6 +124,12 @@ public class PlayerPerformanceTelemetry : MonoBehaviour
             nearMisses = nearMisses
         };
     }
+
+    // Public getters added for RLTrainingManager CSV logging
+    public int TotalShotsFired => shotsFired;
+    public int TotalShotsHit => shotsHit;
+    public float TotalDamageDealt => damageDealt;
+    public float TotalDamageTaken => damageTaken;
 }
 
 public struct PlayerDifficultyState

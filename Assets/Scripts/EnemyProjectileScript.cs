@@ -11,7 +11,7 @@ public class EnemyProjectileScript : MonoBehaviour, IDifficultyTunable
     private bool hasHit = false;
     private float baseSpeed;
     private RLTrainingManager trainingManager;
-    private EnemyAgent enemyAgent;
+    public EnemyAgent enemyAgent;
 
     private void Awake()
     {
@@ -26,7 +26,8 @@ public class EnemyProjectileScript : MonoBehaviour, IDifficultyTunable
             DanmakuDDAController.Instance.RegisterTunable(this);
 
         trainingManager = FindObjectOfType<RLTrainingManager>();
-        enemyAgent = FindObjectOfType<EnemyAgent>();
+        if (enemyAgent == null)
+            enemyAgent = FindObjectOfType<EnemyAgent>();
 
         // Use the bullet's initial rotation direction instead of always aiming at player
         // This allows for spread shots from TestEnemyScript
@@ -55,7 +56,11 @@ public class EnemyProjectileScript : MonoBehaviour, IDifficultyTunable
             }
 
             if (trainingManager != null)
+            {
                 trainingManager.ReportEnemyDamageDealt(damage);
+                // Report that an enemy shot hit the player
+                trainingManager.ReportEnemyShotHit();
+            }
 
             if (enemyAgent != null)
                 enemyAgent.RewardForHit();

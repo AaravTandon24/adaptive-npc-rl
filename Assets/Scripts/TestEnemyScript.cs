@@ -122,7 +122,7 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
     }
 
     /// <summary>
-    /// Fire 3 projectiles with spread angle
+    /// Fire spread of projectiles and report shots fired to the training manager
     /// </summary>
     private void ShootSpread()
     {
@@ -149,7 +149,12 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
             if (projectileScript != null)
             {
                 projectileScript.speed = bulletSpeed;
+                projectileScript.enemyAgent = enemyAgent;
             }
+
+            // Report shot fired for each instantiated projectile
+            if (trainingManager != null)
+                trainingManager.ReportEnemyShotFired();
         }
     }
 

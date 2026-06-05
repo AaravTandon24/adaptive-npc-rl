@@ -39,11 +39,11 @@ public class EnemyAgent : Agent
     [Tooltip("Penalty multiplier applied when taking damage")]
     public float damagePenalty = 0.1f;
     [Tooltip("Reward given when the agent's projectiles hit the player")]
-    public float hitReward = 0.5f;
+    public float hitReward = 0.3f;
     [Tooltip("Reward for winning (killing player)")]
-    public float winReward = 1f;
+    public float winReward = 0.5f;
     [Tooltip("Penalty for dying")]
-    public float deathPenalty = -1f;
+    public float deathPenalty = -0.5f;
 
     // Cached components
     private Rigidbody2D rb;
@@ -51,8 +51,9 @@ public class EnemyAgent : Agent
     private TestEnemyHealthScript testEnemyHealth;
     private EnemyHealthScript enemyHealth;
 
-    // track previous health to detect damage taken
-    private float previousHealth;
+    // track whether the episode has already ended
+    private bool episodeEnded = false;
+    private float episodeStartTime;
 
     // Called once when the Agent is first initialized
     public override void Initialize()
@@ -79,7 +80,6 @@ public class EnemyAgent : Agent
             currentHealth = enemyHealth.currentHealth;
         }
 
-        previousHealth = currentHealth;
     }
 
     private void ConfigureTrainingComponents()
@@ -122,7 +122,8 @@ public class EnemyAgent : Agent
             maxHealth = enemyHealth.maxHealth;
         }
 
-        previousHealth = currentHealth;
+        episodeEnded = false;
+        episodeStartTime = Time.time;
 
         // Ensure Rigidbody is not carrying over momentum
         if (rb != null)
@@ -191,20 +192,11 @@ public class EnemyAgent : Agent
         // Small positive reward each step to encourage survival/active behavior
         AddReward(survivalReward);
 
-        // Detect damage taken this step and apply penalty
-        float current = ReadEnemyHealth();
-        if (current < previousHealth)
+        // Add +0.002 per step when player HP ratio is between 0.3-0.7
+        float playerHPRatio = GetPlayerHealthNormalized();
+        if (playerHPRatio >= 0.3f && playerHPRatio <= 0.7f)
         {
-            float dmgTaken = previousHealth - current;
-            AddReward(-damagePenalty * dmgTaken);
-        }
-        previousHealth = current;
-
-        // Check terminal conditions locally as safety (environment manager may also trigger)
-        if (current <= 0f)
-        {
-            AddReward(deathPenalty);
-            EndEpisode();
+            AddReward(0.002f);
         }
 
         if (playerHealthScript != null && playerHealthScript.currentHealth <= 0f)
@@ -214,7 +206,7 @@ public class EnemyAgent : Agent
         }
     }
 
-    // Heuristic for testing — maps to player input (WASD / arrows)
+    // Heuristic for testing â€” maps to player input (WASD / arrows)
     public override void Heuristic(in ActionBuffers actionsOut)
     {
         var continuous = actionsOut.ContinuousActions;
@@ -250,6 +242,26 @@ public class EnemyAgent : Agent
         {
             AddReward(deathPenalty);
             EndEpisode();
+        }
+    }
+
+    /// <summary>
+    /// Shadow EndEpisode to ensure it is only triggered once per episode.
+    /// </summary>
+    public new void EndEpisode()
+    {
+        if (!episodeEnded)
+        {
+            episodeEnded = true;
+
+            // Add -0.3 if episode ends in under 10 seconds
+            float episodeDuration = Time.time - episodeStartTime;
+            if (episodeDuration < 10f)
+            {
+                AddReward(-0.3f);
+            }
+
+            base.EndEpisode();
         }
     }
 
@@ -294,3 +306,4 @@ public class EnemyAgent : Agent
             rb.velocity = Vector2.zero;
     }
 }
+

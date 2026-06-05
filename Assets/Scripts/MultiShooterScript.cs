@@ -14,6 +14,7 @@ public class MultiShooterScript : MonoBehaviour, IDifficultyTunable
     private float baseStartTimeBtwShots;
     private int currentBulletsPerBurst = 1;
     private EnemyHealthScript enemyHealthScript;  // Reference to enemy health
+    private EnemyAgent enemyAgent;
 
     private void Awake()
     {
@@ -28,6 +29,7 @@ public class MultiShooterScript : MonoBehaviour, IDifficultyTunable
         FindPlayer();
         timeBtwShots = startTimeBtwShots;
         enemyHealthScript = GetComponent<EnemyHealthScript>();  // Get health script from the enemy itself
+        enemyAgent = GetComponent<EnemyAgent>();
 
         DanmakuDDAController.EnsureExists().RegisterTunable(this);
     }
@@ -129,7 +131,12 @@ public class MultiShooterScript : MonoBehaviour, IDifficultyTunable
 
             float offset = bulletsToFire == 1 ? 0f : Mathf.Lerp(-burstSpreadAngle / 2f, burstSpreadAngle / 2f, (float)i / (bulletsToFire - 1));
             Quaternion rotation = Quaternion.Euler(0f, 0f, baseAngle + offset - 90f);
-            Instantiate(projectile, transform.position, rotation);
+            GameObject bullet = Instantiate(projectile, transform.position, rotation);
+            EnemyProjectileScript projectileScript = bullet.GetComponent<EnemyProjectileScript>();
+            if (projectileScript != null)
+            {
+                projectileScript.enemyAgent = enemyAgent;
+            }
         }
     }
 

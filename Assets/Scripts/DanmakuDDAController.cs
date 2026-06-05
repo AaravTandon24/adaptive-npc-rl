@@ -23,6 +23,9 @@ public class DanmakuDDAController : MonoBehaviour
     [Range(0f, 1f)] public float currentPressure;
     public DifficultyProfile currentProfile = DifficultyProfile.Default;
 
+    private RLTrainingManager trainingManager;
+    private int lastChangedEpisode = -100;
+
     public DifficultyProfile CurrentProfile => currentProfile;
 
     private float nextUpdateTime;
@@ -39,6 +42,7 @@ public class DanmakuDDAController : MonoBehaviour
     private void Awake()
     {
         Instance = this;
+        trainingManager = FindObjectOfType<RLTrainingManager>();
 
         if (telemetry == null)
             telemetry = FindObjectOfType<PlayerPerformanceTelemetry>();
@@ -69,6 +73,9 @@ public class DanmakuDDAController : MonoBehaviour
 
     private void Update()
     {
+        if (trainingManager != null)
+            return;
+
         if (Time.time < nextUpdateTime)
             return;
 
@@ -121,6 +128,47 @@ public class DanmakuDDAController : MonoBehaviour
             IDifficultyTunable tunable = behaviour as IDifficultyTunable;
             if (tunable != null)
                 tunable.ApplyDifficulty(currentProfile);
+        }
+    }
+
+    public void OnEpisodeEnd(int currentEpisodeCount)
+    {
+        // No difficulty changes allowed for the first 5 episodes
+        if (currentEpisodeCount < 2)
+            return;
+
+        // 2 episode cooldown between any difficulty change (next allowed change at lastChangedEpisode + 3)
+        if (lastChangedEpisode >= 0 && currentEpisodeCount - lastChangedEpisode < 3)
+            return;
+
+        currentPressure = pressureAnalyzer != null ? pressureAnalyzer.GetPressureScore() : 0f;
+        PlayerDifficultyState playerState = telemetry != null ? telemetry.GetPlayerState() : default;
+
+        float desiredDifficulty = currentDifficulty;
+        if (currentPressure > maxTargetPressure || playerState.healthPercent < 0.35f || playerState.damageTakenPerSecond > 0.4f)
+        {
+            desiredDifficulty -= 0.05f;
+        }
+        else if (currentPressure < minTargetPressure && playerState.healthPercent > 0.6f)
+        {
+            desiredDifficulty += 0.05f;
+        }
+
+        if (playerState.hitRate > 0.45f && playerState.damageDealtPerSecond > playerState.damageTakenPerSecond)
+            desiredDifficulty += 0.05f * 0.5f;
+
+        if (playerState.nearMissesPerSecond > 1.5f)
+            desiredDifficulty -= 0.05f * 0.5f;
+
+        // Clamp the total change to 0.05f max per episode
+        float delta = Mathf.Clamp(desiredDifficulty - currentDifficulty, -0.05f, 0.05f);
+
+        if (Mathf.Abs(delta) > 0.0001f)
+        {
+            currentDifficulty = Mathf.Clamp01(currentDifficulty + delta);
+            lastChangedEpisode = currentEpisodeCount;
+            currentProfile = DifficultyProfile.FromPressure(currentDifficulty, maxActiveEnemyBullets);
+            ApplyProfileToScene();
         }
     }
 }
