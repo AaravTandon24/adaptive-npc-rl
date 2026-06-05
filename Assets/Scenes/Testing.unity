@@ -195,6 +195,11 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 97e12ba607bfc8d479e843e980f002f5, type: 3}
+--- !u!4 &183223179 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 7484010182431932368, guid: 97e12ba607bfc8d479e843e980f002f5, type: 3}
+  m_PrefabInstance: {fileID: 183223178}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &453817990
 GameObject:
   m_ObjectHideFlags: 0
@@ -672,6 +677,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 8511105242408661766, guid: 14b900929dc11fc428e1055b77d3415d, type: 3}
+      propertyPath: m_Constraints
+      value: 4
+      objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 5988351667748273001, guid: 14b900929dc11fc428e1055b77d3415d, type: 3}
     - {fileID: 6586336084731824226, guid: 14b900929dc11fc428e1055b77d3415d, type: 3}
@@ -684,6 +693,15 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 925482235575821838, guid: 14b900929dc11fc428e1055b77d3415d, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1757018059}
+    - targetCorrespondingSourceObject: {fileID: 925482235575821838, guid: 14b900929dc11fc428e1055b77d3415d, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1757018062}
+    - targetCorrespondingSourceObject: {fileID: 925482235575821838, guid: 14b900929dc11fc428e1055b77d3415d, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1757018061}
+    - targetCorrespondingSourceObject: {fileID: 925482235575821838, guid: 14b900929dc11fc428e1055b77d3415d, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1757018060}
   m_SourcePrefab: {fileID: 100100000, guid: 14b900929dc11fc428e1055b77d3415d, type: 3}
 --- !u!1 &1184814132
 GameObject:
@@ -790,6 +808,9 @@ MonoBehaviour:
   playerDamageDealt: 0
   enemyDamageDealt: 0
   timeSurvived: 0
+  writeEpisodeCsv: 1
+  logDirectoryName: RLTrainingLogs
+  csvFileName: enemy_agent_episodes.csv
 --- !u!4 &1521086774
 Transform:
   m_ObjectHideFlags: 0
@@ -976,6 +997,7 @@ MonoBehaviour:
   movementSpeed: 4
   bulletSpeed: 5
   spreadAngle: 60
+  baseBulletsPerBurst: 3
 --- !u!114 &1757018059
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -990,6 +1012,79 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   currentHealth: 0
   maxHealth: 0
+--- !u!114 &1757018060
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1757018049}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3a5c9d521e5ef4759a8246a07d52221e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  DecisionPeriod: 5
+  DecisionStep: 0
+  TakeActionsBetweenDecisions: 1
+--- !u!114 &1757018061
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1757018049}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7007cffef02593f49a32e1b4bf195b1a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  agentParameters:
+    maxStep: 0
+  hasUpgradedFromAgentParameters: 1
+  MaxStep: 0
+  player: {fileID: 183223179}
+  moveSpeed: 3
+  maxHealth: 10
+  currentHealth: 10
+  survivalReward: 0.001
+  damagePenalty: 0.1
+  hitReward: 0.5
+  winReward: 1
+  deathPenalty: -1
+--- !u!114 &1757018062
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1757018049}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5d1c4e0b1822b495aa52bc52839ecb30, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_BrainParameters:
+    VectorObservationSize: 9
+    NumStackedVectorObservations: 1
+    m_ActionSpec:
+      m_NumContinuousActions: 2
+      BranchSizes: 
+    VectorActionSize: 02000000
+    VectorActionDescriptions:
+    - Move X
+    - Move Y
+    VectorActionSpaceType: 1
+    hasUpgradedBrainParametersWithActionSpec: 1
+  m_Model: {fileID: 5022602860645237092, guid: 0a4e710d65c34f64490ebac747f33dcd, type: 3}
+  m_InferenceDevice: 0
+  m_BehaviorType: 0
+  m_BehaviorName: EnemyAgent
+  TeamId: 0
+  m_UseChildSensors: 1
+  m_UseChildActuators: 1
+  m_DeterministicInference: 0
+  m_ObservableAttributeHandling: 0
 --- !u!1 &1966290677 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 7722148092488358324, guid: 97e12ba607bfc8d479e843e980f002f5, type: 3}

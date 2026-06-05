@@ -1,4 +1,5 @@
 using System.IO;
+using System.Globalization;
 using UnityEngine;
 
 /// <summary>
@@ -36,12 +37,19 @@ public class RLTrainingManager : MonoBehaviour
     [Tooltip("Time the player survived this episode")]
     public float timeSurvived = 0f;
 
+    [Header("Episode Logging")]
+    public bool writeEpisodeCsv = true;
+    public string logDirectoryName = "RLTrainingLogs";
+    public string csvFileName = "enemy_agent_episodes.csv";
+
     // Private cached references
     private Vector3 playerStartPosition;
     private Vector3 enemyStartPosition;
     private PlayerLivesScript playerHealthScript;
     private TestEnemyHealthScript enemyHealthScript;
+    private EnemyAgent enemyAgent;
     private bool episodeActive = false;
+    private string lastEpisodeOutcome = "unknown";
 
     // DDA sampling for episode averages
     private float cumulativeDifficultySum = 0f;
@@ -103,6 +111,7 @@ public class RLTrainingManager : MonoBehaviour
         // Cache health script references
         playerHealthScript = player.GetComponent<PlayerLivesScript>();
         enemyHealthScript = enemy.GetComponent<TestEnemyHealthScript>();
+        enemyAgent = enemy.GetComponent<EnemyAgent>();
 
         if (playerHealthScript == null)
         {
@@ -138,6 +147,7 @@ public class RLTrainingManager : MonoBehaviour
         if (playerHealthScript.currentHealth <= 0)
         {
             Debug.Log("Episode ended: Player defeated");
+            lastEpisodeOutcome = "player_defeated";
             EndEpisode();
             return;
         }
@@ -146,6 +156,7 @@ public class RLTrainingManager : MonoBehaviour
         if (enemyHealthScript.currentHealth <= 0)
         {
             Debug.Log("Episode ended: Enemy defeated");
+            lastEpisodeOutcome = "enemy_defeated";
             EndEpisode();
             return;
         }
@@ -154,6 +165,7 @@ public class RLTrainingManager : MonoBehaviour
         if (currentEpisodeTime >= episodeTimeLimit)
         {
             Debug.Log("Episode ended: Time limit reached");
+            lastEpisodeOutcome = "timeout";
             EndEpisode();
             return;
         }
@@ -170,6 +182,9 @@ public class RLTrainingManager : MonoBehaviour
         // Log episode statistics and write metrics
         LogEpisodeStats();
 
+        if (enemyAgent != null)
+            enemyAgent.EndEpisode();
+
         // Reset for next episode
         ResetEpisode();
         episodeActive = true;
@@ -182,6 +197,7 @@ public class RLTrainingManager : MonoBehaviour
     {
         // Reset timer
         currentEpisodeTime = 0f;
+        lastEpisodeOutcome = "unknown";
 
         // Reset performance metrics
         playerDamageDealt = 0f;
@@ -291,7 +307,7 @@ public class RLTrainingManager : MonoBehaviour
         Debug.Log($"Avg Difficulty: {avgDifficulty:F3}, Avg Pressure: {avgPressure:F3}");
         Debug.Log("========================");
 
-        // Append CSV line
+        // Append lightweight metrics CSV (training_metrics.csv)
         try
         {
             string line = $"{episodeCount},{episodeReward:F4},{timeSurvived:F2},{playerDamageDealt:F2},{enemyDamageDealt:F2},{(enemyDefeated ? 1 : 0)},{avgDifficulty:F3},{avgPressure:F3}\n";
@@ -300,6 +316,45 @@ public class RLTrainingManager : MonoBehaviour
         catch (System.Exception ex)
         {
             Debug.LogWarning($"Failed to write metrics CSV: {ex.Message}");
+        }
+
+        // Also write the richer per-run CSV in Logs (from arzaan-branch)
+        WriteEpisodeCsv(playerFinalHP, enemyFinalHP);
+    }
+
+    private void WriteEpisodeCsv(float playerFinalHP, float enemyFinalHP)
+    {
+        if (!writeEpisodeCsv)
+            return;
+
+        string directory = Path.Combine(Application.dataPath, "..", "Logs", logDirectoryName);
+        Directory.CreateDirectory(directory);
+
+        string path = Path.Combine(directory, csvFileName);
+        bool writeHeader = !File.Exists(path);
+
+        float pressure = DanmakuDDAController.Instance != null ? DanmakuDDAController.Instance.currentPressure : 0f;
+        float difficulty = DanmakuDDAController.Instance != null ? DanmakuDDAController.Instance.currentDifficulty : 0f;
+        int activeEnemyBullets = GameObject.FindGameObjectsWithTag("Enemy Bullet").Length;
+
+        using (StreamWriter writer = new StreamWriter(path, true))
+        {
+            if (writeHeader)
+            {
+                writer.WriteLine("episode,outcome,survival_time,player_damage_dealt,enemy_damage_dealt,player_final_hp,enemy_final_hp,pressure,difficulty,active_enemy_bullets");
+            }
+
+            writer.WriteLine(string.Join(",",
+                episodeCount.ToString(CultureInfo.InvariantCulture),
+                lastEpisodeOutcome,
+                timeSurvived.ToString("F3", CultureInfo.InvariantCulture),
+                playerDamageDealt.ToString("F3", CultureInfo.InvariantCulture),
+                enemyDamageDealt.ToString("F3", CultureInfo.InvariantCulture),
+                playerFinalHP.ToString("F3", CultureInfo.InvariantCulture),
+                enemyFinalHP.ToString("F3", CultureInfo.InvariantCulture),
+                pressure.ToString("F3", CultureInfo.InvariantCulture),
+                difficulty.ToString("F3", CultureInfo.InvariantCulture),
+                activeEnemyBullets.ToString(CultureInfo.InvariantCulture)));
         }
     }
 

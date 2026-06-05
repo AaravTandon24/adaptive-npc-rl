@@ -4,6 +4,7 @@ using UnityEngine;
 using Unity.MLAgents;
 using Unity.MLAgents.Sensors;
 using Unity.MLAgents.Actuators;
+using Unity.MLAgents.Policies;
 
 /// <summary>
 /// ML-Agent wrapper for the test enemy. This is a separate ML-Agent implementation
@@ -57,6 +58,7 @@ public class EnemyAgent : Agent
     public override void Initialize()
     {
         rb = GetComponent<Rigidbody2D>();
+        ConfigureTrainingComponents();
 
         // Try to find health scripts (prefer test-specific)
         testEnemyHealth = GetComponent<TestEnemyHealthScript>();
@@ -80,6 +82,27 @@ public class EnemyAgent : Agent
         previousHealth = currentHealth;
     }
 
+    private void ConfigureTrainingComponents()
+    {
+        BehaviorParameters behaviorParameters = GetComponent<BehaviorParameters>();
+        if (behaviorParameters != null)
+        {
+            behaviorParameters.BehaviorName = "EnemyAgent";
+            behaviorParameters.BehaviorType = BehaviorType.Default;
+            behaviorParameters.BrainParameters.VectorObservationSize = 9;
+            behaviorParameters.BrainParameters.NumStackedVectorObservations = 1;
+            behaviorParameters.BrainParameters.ActionSpec = ActionSpec.MakeContinuous(2);
+            behaviorParameters.BrainParameters.VectorActionDescriptions = new[] { "Move X", "Move Y" };
+        }
+
+        DecisionRequester requester = GetComponent<DecisionRequester>();
+        if (requester == null)
+            requester = gameObject.AddComponent<DecisionRequester>();
+
+        requester.DecisionPeriod = 5;
+        requester.DecisionStep = 0;
+        requester.TakeActionsBetweenDecisions = true;
+    }
     // Called at the beginning of each episode (reset expected to be handled by environment manager)
     public override void OnEpisodeBegin()
     {
@@ -256,8 +279,10 @@ public class EnemyAgent : Agent
         return playerHealthScript.maxHealth > 0f ? Mathf.Clamp01(playerHealthScript.currentHealth / playerHealthScript.maxHealth) : 0f;
     }
 
-    private void OnDisable()
+    protected override void OnDisable()
     {
+        base.OnDisable();
+
         // ensure Rigidbody is stopped when disabled
         if (rb != null)
             rb.velocity = Vector2.zero;
