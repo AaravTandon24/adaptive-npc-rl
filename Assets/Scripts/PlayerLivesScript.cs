@@ -7,34 +7,40 @@ public class PlayerLivesScript : MonoBehaviour
 {
     [Header("Health Settings")]
     public float currentHealth;
-    public float maxHealth; 
+    public float maxHealth;
 
     [Header("References")]
     public GameObject explosion;
     public Text livesText;
     public GameOverScript gameOverScript;
 
+    /// <summary>
+    /// Set to true by RLTrainingManager so that player death triggers an
+    /// episode reset instead of the normal Game Over sequence.
+    /// When true, GameOver() is never called and Time.timeScale is never set to 0.
+    /// </summary>
+    [HideInInspector] public bool trainingMode = false;
+
     private bool isDead = false;
     private PlayerPerformanceTelemetry telemetry;
+    private Rigidbody2D rb;
 
     private void Start()
     {
+        rb = GetComponent<Rigidbody2D>();
         telemetry = GetComponent<PlayerPerformanceTelemetry>();
         if (currentHealth <= 0)
-        {
-            currentHealth = maxHealth; 
-        }
+            currentHealth = maxHealth;
         UpdateUI();
     }
 
     public UnityEvent OnDied;
+    [HideInInspector] public UnityEvent OnDiedTraining = new UnityEvent();
 
     private void UpdateUI()
     {
         if (livesText != null)
-        {
             livesText.text = currentHealth.ToString();
-        }
     }
 
     public void TakeDamage(float damage)
@@ -42,9 +48,9 @@ public class PlayerLivesScript : MonoBehaviour
         if (isDead || damage <= 0) return;
 
         currentHealth = Mathf.Max(0, currentHealth - damage);
+
         if (telemetry == null)
             telemetry = GetComponent<PlayerPerformanceTelemetry>();
-
         if (telemetry != null)
             telemetry.ReportDamageTaken(damage);
 
@@ -52,6 +58,17 @@ public class PlayerLivesScript : MonoBehaviour
 
         if (currentHealth <= 0 && !isDead)
         {
+            isDead = true;
+            Debug.Log($"[PlayerLives] Player died. trainingMode={trainingMode}, timeScale={Time.timeScale:F2}");
+
+            if (trainingMode)
+            {
+                Debug.Log("[PlayerLives] trainingMode=true: invoking OnDiedTraining and skipping normal OnDied/GameOver.");
+                OnDiedTraining.Invoke();
+                return;
+            }
+
+            Debug.Log("[PlayerLives] trainingMode=false: invoking normal OnDied and calling GameOver().");
             OnDied.Invoke();
             GameOver();
         }
@@ -61,9 +78,9 @@ public class PlayerLivesScript : MonoBehaviour
     {
         if (isDead || health <= 0) return;
         currentHealth += health;
+
         if (telemetry == null)
             telemetry = GetComponent<PlayerPerformanceTelemetry>();
-
         if (telemetry != null)
             telemetry.ReportPowerupCollected();
 
@@ -72,9 +89,6 @@ public class PlayerLivesScript : MonoBehaviour
 
     private void GameOver()
     {
-        if (isDead) return;
-
-        isDead = true;
         Debug.Log("Game Over!");
 
         if (explosion != null)
@@ -82,9 +96,11 @@ public class PlayerLivesScript : MonoBehaviour
             GameObject exp = Instantiate(explosion, transform.position, Quaternion.identity);
             StartCoroutine(GameOverSequence(exp));
         }
-        gameObject.SetActive(false);
-        gameOverScript.Setup();
 
+        gameObject.SetActive(false);
+
+        if (gameOverScript != null)
+            gameOverScript.Setup();
     }
 
     private IEnumerator GameOverSequence(GameObject exp)
@@ -92,17 +108,68 @@ public class PlayerLivesScript : MonoBehaviour
         yield return new WaitForSeconds(3f);
 
         if (exp != null)
-        {
             Destroy(exp);
-        }
 
         Time.timeScale = 0;
     }
 
+    // -------------------------------------------------------------------------
+    // Training-mode reset API — called by RLTrainingManager
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// Resets the player for the next training episode.
+    /// Fully synchronous — no coroutines or timing tricks needed because
+    /// trainingMode=true ensures GameOver() was never called.
+    /// </summary>
+    public void ResetForEpisode()
+    {
+        Debug.Log($"[PlayerLives] ResetForEpisode START. isDead={isDead}, timeScale={Time.timeScale:F2}, active={gameObject.activeInHierarchy}");
+
+        isDead = false;
+        currentHealth = maxHealth;
+        Time.timeScale = 1f;
+
+        if (!gameObject.activeInHierarchy)
+            gameObject.SetActive(true);
+
+        if (rb != null)
+        {
+            rb.simulated = true;
+            rb.WakeUp();
+            rb.velocity = Vector2.zero;
+            rb.angularVelocity = 0f;
+            Debug.Log($"[PlayerLives] Rigidbody2D reset. simulated={rb.simulated}, bodyType={rb.bodyType}");
+        }
+        else
+        {
+            Debug.LogWarning("[PlayerLives] rb is NULL in ResetForEpisode! Rigidbody2D will not be woken.");
+        }
+
+        // Restore focus to the Game View so keyboard input (WASD) works
+        // after the reset. Without this, the Console/Inspector can steal focus
+        // and Input.GetAxisRaw returns 0 the entire episode.
+#if UNITY_EDITOR
+        UnityEditor.EditorWindow gameView = UnityEditor.EditorWindow.focusedWindow;
+        // Find the Game view and focus it
+        System.Type gameViewType = System.Type.GetType("UnityEditor.GameView,UnityEditor");
+        if (gameViewType != null)
+        {
+            UnityEditor.EditorWindow gv = UnityEditor.EditorWindow.GetWindow(gameViewType, false, null, false);
+            if (gv != null) gv.Focus();
+        }
+#endif
+
+        Debug.Log($"[PlayerLives] ResetForEpisode END. isDead={isDead}, timeScale={Time.timeScale:F2}, active={gameObject.activeInHierarchy}");
+
+        UpdateUI();
+    }
+
+
     public void OnTriggerEnter2D(Collider2D collision)
     {
         if (collision.CompareTag("HealthPowerUp"))
-        { 
+        {
             AddHealth(2);
             if (currentHealth > maxHealth)
             {
@@ -113,5 +180,5 @@ public class PlayerLivesScript : MonoBehaviour
         }
     }
 
-    public float RemainingHealthPercentage => maxHealth > 0 ? currentHealth / maxHealth : 0f; // Avoid division by zero.
+    public float RemainingHealthPercentage => maxHealth > 0 ? currentHealth / maxHealth : 0f;
 }

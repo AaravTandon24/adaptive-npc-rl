@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -19,6 +20,9 @@ public class RLTrainingManager : MonoBehaviour
     [Header("Episode Settings")]
     [Tooltip("Maximum duration of an episode in seconds")]
     public float episodeTimeLimit = 60f;
+
+    [Tooltip("Maximum number of episodes to run (0 for infinite)")]
+    public int maxEpisodes = 500;
 
     [Header("Episode Tracking (Read-Only)")]
     [Tooltip("Current time elapsed in the episode")]
@@ -46,10 +50,12 @@ public class RLTrainingManager : MonoBehaviour
     private Vector3 playerStartPosition;
     private Vector3 enemyStartPosition;
     private PlayerLivesScript playerHealthScript;
+    private PlayerMovement playerMovement;
     private TestEnemyHealthScript enemyHealthScript;
     private EnemyAgent enemyAgent;
     private TestEnemyScript testEnemyScript;
     private PlayerPerformanceTelemetry playerTelemetry;
+    private GameOverScript gameOverScript;
     private bool episodeActive = false;
     private string lastEpisodeOutcome = "unknown";
 
@@ -107,6 +113,10 @@ public class RLTrainingManager : MonoBehaviour
         enemyAgent = enemy.GetComponent<EnemyAgent>();
         testEnemyScript = enemy.GetComponent<TestEnemyScript>();
         playerTelemetry = player.GetComponent<PlayerPerformanceTelemetry>();
+        playerMovement = player.GetComponent<PlayerMovement>();
+
+        // Cache the Game Over UI so we can hide it during episode resets
+        gameOverScript = FindObjectOfType<GameOverScript>(true);
 
         if (playerHealthScript == null)
         {
@@ -120,9 +130,28 @@ public class RLTrainingManager : MonoBehaviour
             return;
         }
 
+        // Enable training mode so player death skips GameOver() entirely,
+        // keeping timeScale at 1 and the player object always active.
+        playerHealthScript.trainingMode = true;
+
+        // Listen for player death so RLTrainingManager can end the episode.
+        playerHealthScript.OnDiedTraining.AddListener(OnPlayerDied);
+
         // Start first episode
         ResetEpisode();
         episodeActive = true;
+    }
+
+    /// <summary>
+    /// Called by PlayerLivesScript.OnDied the moment the player's HP hits 0.
+    /// Ends the episode before GameOver() can freeze Time.timeScale.
+    /// </summary>
+    private void OnPlayerDied()
+    {
+        if (!episodeActive) return;
+        Debug.Log("Episode ended: Player defeated");
+        lastEpisodeOutcome = "player_defeated";
+        EndEpisode();
     }
 
     /// <summary>
@@ -139,14 +168,9 @@ public class RLTrainingManager : MonoBehaviour
             return;
         }
 
-        // Condition 1: Player HP reaches 0
-        if (playerHealthScript.currentHealth <= 0)
-        {
-            Debug.Log("Episode ended: Player defeated");
-            lastEpisodeOutcome = "player_defeated";
-            EndEpisode();
-            return;
-        }
+        // Condition 1: Player death is now handled via the OnDied event
+        // (registered in InitializeEpisode). Polling is kept as a safety
+        // fallback only — the event fires before Time.timeScale is frozen.
 
         // Condition 2: Enemy HP reaches 0
         if (enemyHealthScript.currentHealth <= 0)
@@ -177,6 +201,17 @@ public class RLTrainingManager : MonoBehaviour
 
         // Log episode statistics
         LogEpisodeStats();
+
+        if (maxEpisodes > 0 && episodeCount >= maxEpisodes)
+        {
+            Debug.Log($"RLTrainingManager: Reached max episode limit of {maxEpisodes}. Quitting application.");
+            #if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+            #else
+            Application.Quit();
+            #endif
+            return;
+        }
 
         if (DanmakuDDAController.Instance != null)
         {
@@ -212,26 +247,27 @@ public class RLTrainingManager : MonoBehaviour
         // Destroy all projectiles FIRST before resetting entities
         DestroyAllProjectiles();
 
-        // Reset player
+        // Reset player using the clean training-mode API.
         if (player != null)
         {
             player.transform.position = playerStartPosition;
-            
-            // Reset health WITHOUT triggering GameOver
-            playerHealthScript.currentHealth = playerHealthScript.maxHealth;
-            
-            // Ensure player is active and Time.timeScale is normal
-            if (!player.activeInHierarchy)
-                player.SetActive(true);
-            
-            // Ensure time is not paused (in case GameOver was triggered)
-            Time.timeScale = 1f;
-            
-            // Reset the isDead flag via reflection (since it's private)
-            var isDead = typeof(PlayerLivesScript).GetField("isDead", 
-                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            if (isDead != null)
-                isDead.SetValue(playerHealthScript, false);
+
+            // Hide the Game Over UI if somehow visible.
+            if (gameOverScript != null)
+                gameOverScript.gameObject.SetActive(false);
+
+            // Resets isDead, health, timeScale, and wakes the Rigidbody2D.
+            playerHealthScript.ResetForEpisode();
+
+            // The OnDied UnityEvent has an Inspector listener that sets
+            // PlayerMovement.enabled = false on death. Re-enable it now.
+            if (playerMovement != null)
+                playerMovement.enabled = true;
+
+            // Arm FixedUpdate debug logging so the Console shows whether
+            // physics is actually running after this reset.
+            if (playerMovement != null)
+                playerMovement.TriggerDebugLog(5);
         }
 
         // Reset enemy
@@ -271,6 +307,7 @@ public class RLTrainingManager : MonoBehaviour
 
         Debug.Log($"Episode {episodeCount + 1} started");
     }
+
 
     /// <summary>
     /// Destroy all active projectiles in the scene

@@ -148,7 +148,7 @@ public class PowerupSpawner : MonoBehaviour, IDifficultyTunable
     {
         PowerupData newPowerupData = new PowerupData
         {
-            powerupPrefab = powerupPrefab,
+            powerupPrefab = powerupPrefab,          
             spawnChance = Mathf.Clamp01(spawnChance)
         };
 

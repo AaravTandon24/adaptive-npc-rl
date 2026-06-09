@@ -75,8 +75,10 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
 .venv/
+.venv-mlagents/
 .venv-mlagents310/
 venv/
+.venv*/
 
 # ML-Agents generated training runs
 /results/

@@ -13,7 +13,7 @@ public class boundaries : MonoBehaviour
     {
         screenBounds = Camera.main.ScreenToWorldPoint(new Vector3(Screen.width, Screen.height, Camera.main.transform.position.z));
         objectWidth = transform.GetComponent<SpriteRenderer>().bounds.size.x / 2;
-        objectWidth = transform.GetComponent<SpriteRenderer>().bounds.size.y / 2;
+        objectHeight = transform.GetComponent<SpriteRenderer>().bounds.size.y / 2;
     }
 
     // Update is called once per frame
@@ -21,7 +21,7 @@ public class boundaries : MonoBehaviour
     {
         Vector3 viewPos = transform.position;
         viewPos.x = Mathf.Clamp(viewPos.x, screenBounds.x * -1 - objectWidth, screenBounds.x + objectWidth);
-        viewPos.y = Mathf.Clamp(viewPos.y, screenBounds.y * -1 - objectWidth, screenBounds.y + objectWidth);
+        viewPos.y = Mathf.Clamp(viewPos.y, screenBounds.y * -1 - objectHeight, screenBounds.y + objectHeight);
         transform.position = viewPos;
     }
 }
