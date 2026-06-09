@@ -258,16 +258,6 @@ public class RLTrainingManager : MonoBehaviour
 
             // Resets isDead, health, timeScale, and wakes the Rigidbody2D.
             playerHealthScript.ResetForEpisode();
-
-            // The OnDied UnityEvent has an Inspector listener that sets
-            // PlayerMovement.enabled = false on death. Re-enable it now.
-            if (playerMovement != null)
-                playerMovement.enabled = true;
-
-            // Arm FixedUpdate debug logging so the Console shows whether
-            // physics is actually running after this reset.
-            if (playerMovement != null)
-                playerMovement.TriggerDebugLog(5);
         }
 
         // Reset enemy

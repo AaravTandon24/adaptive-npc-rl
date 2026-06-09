@@ -117,15 +117,8 @@ public class PlayerLivesScript : MonoBehaviour
     // Training-mode reset API — called by RLTrainingManager
     // -------------------------------------------------------------------------
 
-    /// <summary>
-    /// Resets the player for the next training episode.
-    /// Fully synchronous — no coroutines or timing tricks needed because
-    /// trainingMode=true ensures GameOver() was never called.
-    /// </summary>
     public void ResetForEpisode()
     {
-        Debug.Log($"[PlayerLives] ResetForEpisode START. isDead={isDead}, timeScale={Time.timeScale:F2}, active={gameObject.activeInHierarchy}");
-
         isDead = false;
         currentHealth = maxHealth;
         Time.timeScale = 1f;
@@ -133,25 +126,21 @@ public class PlayerLivesScript : MonoBehaviour
         if (!gameObject.activeInHierarchy)
             gameObject.SetActive(true);
 
+        if (rb == null)
+            rb = GetComponent<Rigidbody2D>();
+
         if (rb != null)
         {
             rb.simulated = true;
             rb.WakeUp();
             rb.velocity = Vector2.zero;
             rb.angularVelocity = 0f;
-            Debug.Log($"[PlayerLives] Rigidbody2D reset. simulated={rb.simulated}, bodyType={rb.bodyType}");
-        }
-        else
-        {
-            Debug.LogWarning("[PlayerLives] rb is NULL in ResetForEpisode! Rigidbody2D will not be woken.");
         }
 
         // Restore focus to the Game View so keyboard input (WASD) works
         // after the reset. Without this, the Console/Inspector can steal focus
         // and Input.GetAxisRaw returns 0 the entire episode.
 #if UNITY_EDITOR
-        UnityEditor.EditorWindow gameView = UnityEditor.EditorWindow.focusedWindow;
-        // Find the Game view and focus it
         System.Type gameViewType = System.Type.GetType("UnityEditor.GameView,UnityEditor");
         if (gameViewType != null)
         {
@@ -159,8 +148,6 @@ public class PlayerLivesScript : MonoBehaviour
             if (gv != null) gv.Focus();
         }
 #endif
-
-        Debug.Log($"[PlayerLives] ResetForEpisode END. isDead={isDead}, timeScale={Time.timeScale:F2}, active={gameObject.activeInHierarchy}");
 
         UpdateUI();
     }
