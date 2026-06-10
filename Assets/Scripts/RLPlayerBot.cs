@@ -68,6 +68,7 @@ public class RLPlayerBot : MonoBehaviour
     private PlayerMovement playerMovement;
     private Transform      enemy;
     private Rigidbody2D    enemyRb;
+    private RLTrainingManager trainingManager;
 
     // ── Movement state ───────────────────────────────────────────────────────
     private enum MoveState { Approach, Strafe, Retreat, Dodge }
@@ -92,7 +93,8 @@ public class RLPlayerBot : MonoBehaviour
     // ─────────────────────────────────────────────────────────────────────────
     void Start()
     {
-        if (FindObjectOfType<RLTrainingManager>() == null)
+        trainingManager = FindObjectOfType<RLTrainingManager>();
+        if (trainingManager == null)
         {
             enabled = false;
             return;
@@ -118,21 +120,28 @@ public class RLPlayerBot : MonoBehaviour
         if (playerMovement != null) playerMovement.enabled = false;
     }
 
+    /// <summary>
+    /// Resolves the enemy Transform via RLTrainingManager so no tag is needed.
+    /// </summary>
+    private void RefreshEnemyRef()
+    {
+        if (trainingManager == null) return;
+        GameObject enemyGO = trainingManager.enemy;
+        if (enemyGO != null && (enemy == null || enemy.gameObject != enemyGO))
+        {
+            enemy   = enemyGO.transform;
+            enemyRb = enemyGO.GetComponent<Rigidbody2D>();
+        }
+    }
+
     void Update()
     {
         if (!botActive) return;
 
-        // Lazy-find enemy (respawns between episodes)
-        if (enemy == null)
-        {
-            GameObject go = GameObject.FindGameObjectWithTag("Enemy");
-            if (go != null)
-            {
-                enemy   = go.transform;
-                enemyRb = go.GetComponent<Rigidbody2D>();
-            }
-            return;
-        }
+        // Always refresh from the manager — enemy reference is stable but safe to re-check.
+        RefreshEnemyRef();
+
+        if (enemy == null || !enemy.gameObject.activeInHierarchy) return;
 
         UpdateAim();
         UpdateFiring();
