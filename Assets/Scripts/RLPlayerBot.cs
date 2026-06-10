@@ -138,6 +138,13 @@ public class RLPlayerBot : MonoBehaviour
     {
         if (!botActive) return;
 
+        // Force PlayerMovement component to stay disabled so it does not fight the bot.
+        if (playerMovement == null) playerMovement = GetComponent<PlayerMovement>();
+        if (playerMovement != null && playerMovement.enabled)
+        {
+            playerMovement.enabled = false;
+        }
+
         // Always refresh from the manager — enemy reference is stable but safe to re-check.
         RefreshEnemyRef();
 

@@ -263,7 +263,9 @@ public class RLTrainingManager : MonoBehaviour
             // === CRITICAL: Re-enable movement & shooting components ===
             // The OnDied UnityEvent on the Player prefab disables PlayerMovement.
             // After a reset we must explicitly re-enable it or the player can't move.
-            if (playerMovement != null)
+            // If RLPlayerBot is present and active, we keep PlayerMovement disabled so the bot can move.
+            RLPlayerBot playerBot = player.GetComponent<RLPlayerBot>();
+            if (playerMovement != null && (playerBot == null || !playerBot.enabled))
                 playerMovement.enabled = true;
 
             Shooting shooting = player.GetComponent<Shooting>();
