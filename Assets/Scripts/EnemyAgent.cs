@@ -195,6 +195,8 @@ public class EnemyAgent : Agent
     // Observations required by the policy
     public override void CollectObservations(VectorSensor sensor)
     {
+        if (sensor == null) return;
+
         Vector2 enemyPos = transform.position;
         Vector2 playerPos = player != null ? (Vector2)player.position : Vector2.zero;
 
