@@ -133,10 +133,6 @@ public class RLTrainingManager : MonoBehaviour
             return;
         }
 
-        // Enable training mode so player death skips GameOver() entirely,
-        // keeping timeScale at 1 and the player object always active.
-        playerHealthScript.trainingMode = true;
-
         // Listen for player death so RLTrainingManager can end the episode.
         playerHealthScript.OnDiedTraining.AddListener(OnPlayerDied);
 
@@ -254,20 +250,25 @@ public class RLTrainingManager : MonoBehaviour
         // Reset player using the clean training-mode API.
         if (player != null)
         {
-            // === CRITICAL: Reset health/isDead BEFORE re-enabling the GameObject ===
-            // If we SetActive(true) first, any overlapping colliders could trigger
-            // TakeDamage → GameOver → SetActive(false) on the same frame.
-            playerHealthScript.ResetForTraining();
-
-            // Move to start position while still inactive (safe)
+            // Move to start position first.
             player.transform.position = playerStartPosition;
 
             // Hide the Game Over UI if somehow visible.
             if (gameOverScript != null)
                 gameOverScript.gameObject.SetActive(false);
 
-            // Resets isDead, health, timeScale, and wakes the Rigidbody2D.
+            // Resets isDead, health, timeScale, re-enables the GameObject, and wakes the Rigidbody2D.
             playerHealthScript.ResetForEpisode();
+
+            // === CRITICAL: Re-enable movement & shooting components ===
+            // The OnDied UnityEvent on the Player prefab disables PlayerMovement.
+            // After a reset we must explicitly re-enable it or the player can't move.
+            if (playerMovement != null)
+                playerMovement.enabled = true;
+
+            Shooting shooting = player.GetComponent<Shooting>();
+            if (shooting != null)
+                shooting.enabled = true;
         }
 
         // Reset enemy

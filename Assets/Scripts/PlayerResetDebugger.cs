@@ -101,7 +101,7 @@ public class PlayerResetDebugger : MonoBehaviour
                   $"  lives.enabled: {lives?.enabled}\n" +
                   $"  lives.currentHealth: {lives?.currentHealth}\n" +
                   $"  lives.maxHealth: {lives?.maxHealth}\n" +
-                  $"  lives.isRLTraining: {lives?.isRLTraining}\n" +
+                  $"  lives.trainingMode: {lives?.trainingMode}\n" +
                   $"  --- Rigidbody2D ---\n" +
                   $"  rb component: {(rb != null ? "found" : "NULL")}\n" +
                   $"  rb.bodyType: {rb?.bodyType}\n" +

@@ -62,15 +62,7 @@ public class PlayerMovement : MonoBehaviour
 
     void FixedUpdate()
     {
-<<<<<<< Updated upstream
-        if (rb == null)
-        {
-            Debug.LogError("[PlayerMovement] rb is NULL — movement is impossible. Assign Rigidbody2D in the Inspector.");
-            return;
-        }
-=======
         if (rb == null) return;
->>>>>>> Stashed changes
 
         rb.MovePosition(rb.position + movement * moveSpeed * Time.fixedDeltaTime);
         Vector2 lookDir = mousePos - rb.position;

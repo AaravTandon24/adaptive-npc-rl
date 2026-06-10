@@ -87,26 +87,16 @@ public class PlayerLivesScript : MonoBehaviour
         UpdateUI();
     }
 
-    /// <summary>
-    /// Called by RLTrainingManager at the start of each episode to
-    /// fully reset the player's dead/health state without triggering GameOver.
-    /// </summary>
-    public void ResetForTraining()
-    {
-        isDead = false;
-        currentHealth = maxHealth;
-        UpdateUI();
-    }
 
     private void GameOver()
     {
         Debug.Log("Game Over!");
 
-        // During RL training the RLTrainingManager handles episode resets.
-        // Skip the Game Over UI and timeScale freeze so training continues uninterrupted.
+        // In trainingMode, TakeDamage() fires OnDiedTraining and returns
+        // before ever reaching this method. This check is a safety guard only.
         if (trainingMode)
         {
-            gameObject.SetActive(false);
+            Debug.LogWarning("[PlayerLives] GameOver() called in trainingMode — this should not happen.");
             return;
         }
 
