@@ -133,7 +133,11 @@ public class DanmakuDDAController : MonoBehaviour
 
     public void OnEpisodeEnd(int currentEpisodeCount)
     {
-        // No difficulty changes allowed for the first 5 episodes
+        // Lock difficulty adjustments during RL training to keep the environment stationary
+        if (trainingManager != null)
+            return;
+
+        // No difficulty changes allowed for the first 2 episodes
         if (currentEpisodeCount < 2)
             return;
 
