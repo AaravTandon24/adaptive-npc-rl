@@ -26,8 +26,21 @@ public class Shooting : MonoBehaviour
         if (Input.GetButtonDown("Fire1") && Time.time >= nextFireTime)
         {
             Shoot();
-            nextFireTime = Time.time + fireRate; // Set next allowed fire time
+            nextFireTime = Time.time + fireRate;
         }
+    }
+
+    /// <summary>
+    /// Called by RLPlayerBot to fire without requiring mouse input.
+    /// Respects the same fireRate timer as manual shooting.
+    /// Returns true if a shot was actually fired.
+    /// </summary>
+    public bool TryShoot()
+    {
+        if (Time.time < nextFireTime) return false;
+        Shoot();
+        nextFireTime = Time.time + fireRate;
+        return true;
     }
 
     void Shoot()
@@ -38,7 +51,8 @@ public class Shooting : MonoBehaviour
         if (telemetry != null)
             telemetry.ReportShotFired();
 
-        if (!isPowerupActive) { 
+        if (!isPowerupActive)
+        {
             GameObject bullet = Instantiate(bulletPrefab, firePoint.position, firePoint.rotation);
             Rigidbody2D rb = bullet.GetComponent<Rigidbody2D>();
             rb.AddForce(firePoint.up * bulletForce, ForceMode2D.Impulse);
