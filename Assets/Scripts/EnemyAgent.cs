@@ -141,17 +141,6 @@ public class EnemyAgent : Agent
 
     private void ConfigureTrainingComponents()
     {
-        BehaviorParameters behaviorParameters = GetComponent<BehaviorParameters>();
-        if (behaviorParameters != null)
-        {
-            behaviorParameters.BehaviorName = "EnemyAgent";
-            // behaviorParameters.BehaviorType = BehaviorType.Default; // Do not force, let Inspector configure
-            behaviorParameters.BrainParameters.VectorObservationSize = 29;
-            behaviorParameters.BrainParameters.NumStackedVectorObservations = 1;
-            behaviorParameters.BrainParameters.ActionSpec = ActionSpec.MakeContinuous(2);
-            behaviorParameters.BrainParameters.VectorActionDescriptions = new[] { "Move X", "Move Y" };
-        }
-
         DecisionRequester requester = GetComponent<DecisionRequester>();
         if (requester == null)
             requester = gameObject.AddComponent<DecisionRequester>();
