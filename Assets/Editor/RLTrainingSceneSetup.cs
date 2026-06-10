@@ -15,7 +15,7 @@ public static class RLTrainingSceneSetup
     private const string TrainedModelCheckpointDirectory = "results/enemy_agent_ppo_initial/EnemyAgent";
     private const string TrainedModelAssetPath = "Assets/ML-Agents/Models/EnemyAgent.onnx";
     private const string BehaviorName = "EnemyAgent";
-    private const int VectorObservationSize = 9;
+    private const int VectorObservationSize = 29;
     private const int ContinuousActionSize = 2;
 
     [MenuItem("Tools/RL/Configure Testing Scene")]

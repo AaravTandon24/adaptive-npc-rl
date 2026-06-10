@@ -61,11 +61,14 @@ The central component managing the RL training process:
 ML-Agents implementation that wraps enemy behavior for RL training:
 
 **Observation Space (Vector Sensor):**
-- Enemy position (x, y)
-- Player position (x, y) 
-- Distance to player (scalar)
-- Normalized enemy health (0-1)
-- Normalized player health (0-1)
+- 29 observations total:
+  - Enemy and Player position (normalized, x/y)
+  - Relative offset to player (x/y), distance, and direction
+  - Enemy and Player velocity (x/y)
+  - Normalized enemy and player health (0-1)
+  - DDA parameters (difficulty, pressure)
+  - Nearest player projectile status (relative x/y offset, velocity direction, normalized distance, isApproaching flag)
+  - Normalized boundary distances (left, right, bottom, top)
 
 **Action Space (Continuous):**
 - Two continuous actions representing movement:
@@ -79,10 +82,11 @@ ML-Agents implementation that wraps enemy behavior for RL training:
 - Rewards for hitting player with projectiles
 - Large reward for winning (killing player)
 - Penalty for dying
+- Movement shaping rewards (ideal range maintenance, lateral movement, idle penalty, direction change penalty, boundary warning/penalty, projectile dodging)
 
 **Behavior:**
-- During training: Movement controlled by ML-Agent policy
-- For testing: Heuristic mode allows keyboard control (WASD/arrow keys)
+- During training: Movement velocity controlled by ML-Agent policy
+- For testing: Heuristic mode allows keyboard control using `I`, `K`, `J`, `L` keys to prevent WASD conflicts
 - Integrates with existing enemy health systems or uses internal fallback
 - Communicates hit events to modify rewards when projectiles connect with player
 
@@ -211,23 +215,25 @@ Relevant prior work boundaries:
 Implemented so far:
 
 1. **RL Enemy Agent**
-   `EnemyAgent.cs` implements a Unity ML-Agents `Agent`.
+   `EnemyAgent.cs` implements a Unity ML-Agents `Agent` using an expanded 29-value observation vector mapping to 2 continuous actions.
 
-It currently observes:
-- enemy position
-- player position
-- distance to player
-- normalized enemy health
-- normalized player health
+It observes:
+- normalized positions of enemy and player
+- relative player offset, distance, and direction
+- enemy/player velocity vectors
+- normalized enemy and player health
+- DDA current difficulty and pressure
+- nearest player projectile relative offset, velocity direction, normalized distance, and isApproaching flag
+- normalized boundary distances
 
 It defines rewards for:
-- surviving
-- taking damage
-- hitting the player
-- defeating the player
-- dying
+- surviving and avoiding damage
+- kiting within ideal range
+- moving laterally and dodging projectiles
+- avoiding boundaries and idle behavior
+- hitting the player, defeating the player, and dying
 
-Important limitation: `OnActionReceived` currently does not yet read `actions.ContinuousActions[0]` and `[1]`; movement values are still set to zero. So the RL structure exists, but learned movement control is not fully wired.
+Movement velocity control via continuous actions is fully implemented and mapped directly to `Rigidbody2D.velocity` in `OnActionReceived`, with scripted target movement disabled when the agent is active.
 
 2. **RL Episode Manager**
    `RLTrainingManager.cs` manages repeated training episodes without reloading the scene.

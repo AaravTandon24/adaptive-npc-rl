@@ -14,10 +14,10 @@ The implemented RL system is separate from the standard enemy AI scripts, so tra
 
 Implemented features:
 
-- Collects enemy position, player position, distance to player, normalized enemy health, and normalized player health.
+- Collects 29 observations: normalized positions of enemy and player, relative player offset/distance/direction, velocities of player and enemy, health, DDA difficulty/pressure, nearest player-bullet status (relative position, direction, normalized distance, approaching flag), and normalized boundary distances.
 - Defines a continuous action space for horizontal and vertical movement and applies those actions to `Rigidbody2D` velocity.
-- Applies rewards for survival, damaging the player, winning, taking damage, and dying.
-- Supports heuristic testing through keyboard movement input.
+- Applies rewards for survival, damaging the player, winning, taking damage, and dying, plus advanced movement rewards (ideal range kiting, lateral movement, idle penalty, direction change penalty, boundary warning/penalty, and player bullet dodging).
+- Supports heuristic testing through keyboard movement input using `I` (up), `K` (down), `J` (left), and `L` (right) to avoid player key conflicts.
 - Integrates with `TestEnemyHealthScript`, `EnemyHealthScript`, and `PlayerLivesScript`.
 
 Current limitation: the agent still needs Unity `Behavior Parameters`, a `DecisionRequester`, and a PPO training configuration before a trained model can be produced and assigned.
@@ -51,6 +51,13 @@ The current reward terms in `EnemyAgent` are:
 - `hitReward`: reward when enemy projectiles hit the player.
 - `winReward`: reward when the player is defeated.
 - `deathPenalty`: penalty when the enemy dies.
+- Movement reward shaping terms:
+  - `idealRangeReward` / `tooClosePenalty` / `tooFarPenalty`: rewards staying at optimal kiting range.
+  - `lateralMovementReward`: rewards moving perpendicular to the player.
+  - `idlePenalty`: penalizes lack of movement.
+  - `directionChangePenalty`: penalizes abrupt changes in direction.
+  - `boundaryPenalty`: penalizes staying near the arena boundaries.
+  - `dodgeReward`: rewards kiting away from incoming player projectiles.
 
 These values are exposed in the inspector for tuning.
 
@@ -62,6 +69,7 @@ This DDA system is not itself a trained RL agent. It is a runtime controller tha
 
 ## Next RL Tasks
 
+- `TestEnemyScript` now automatically disables scripted target movement when `EnemyAgent` is attached, letting the PPO policy exclusively control movement velocity.
 - Connect projectile hit events consistently to `EnemyAgent.RewardForHit`.
 - Add ML-Agents behavior parameters in the Unity scene or prefab.
 - Create a training configuration YAML for PPO or SAC.

@@ -990,6 +990,8 @@ MonoBehaviour:
   stoppingDistance: 5
   retreatDistance: 3
   minSafeDistance: 2
+  useScriptedMovement: 1
+  disableScriptedMovementWhenAgentPresent: 1
   projectile: {fileID: 5368288732676076269, guid: b8779e36b0953154088e4f2522e9c925, type: 3}
   maxHealth: 100
   damagePerShot: 10
@@ -1045,6 +1047,12 @@ MonoBehaviour:
   MaxStep: 0
   player: {fileID: 183223179}
   moveSpeed: 3
+  idealRangeMin: 3
+  idealRangeMax: 6
+  arenaMin: {x: -8, y: -4.5}
+  arenaMax: {x: 8, y: 4.5}
+  boundaryDangerDistance: 0.75
+  bulletObservationRadius: 10
   maxHealth: 10
   currentHealth: 10
   survivalReward: 0.001
@@ -1052,6 +1060,14 @@ MonoBehaviour:
   hitReward: 0.5
   winReward: 1
   deathPenalty: -1
+  idealRangeReward: 0.003
+  tooClosePenalty: 0.006
+  tooFarPenalty: 0.002
+  lateralMovementReward: 0.002
+  idlePenalty: 0.001
+  dodgeReward: 0.004
+  boundaryPenalty: 0.003
+  directionChangePenalty: 0.001
 --- !u!114 &1757018062
 MonoBehaviour:
   m_ObjectHideFlags: 0

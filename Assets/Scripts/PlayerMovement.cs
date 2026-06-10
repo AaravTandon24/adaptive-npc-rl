@@ -15,7 +15,27 @@ public class PlayerMovement : MonoBehaviour
 
     void Awake()
     {
-        pauseScript = pauseMenu.GetComponent<PauseScript>();
+        // Cache rb here so it's always fresh
+        if (rb == null)
+            rb = GetComponent<Rigidbody2D>();
+
+        if (pauseMenu != null)
+            pauseScript = pauseMenu.GetComponent<PauseScript>();
+    }
+
+    // Called every time the GameObject is re-enabled (e.g., after an RL episode reset)
+    void OnEnable()
+    {
+        // Re-cache Rigidbody2D in case the reference went stale during SetActive(false)
+        if (rb == null)
+            rb = GetComponent<Rigidbody2D>();
+
+        // Zero out any leftover velocity from the previous episode
+        if (rb != null)
+        {
+            rb.velocity = Vector2.zero;
+            rb.angularVelocity = 0f;
+        }
     }
 
     void Update()
@@ -23,7 +43,10 @@ public class PlayerMovement : MonoBehaviour
         movement.x = Input.GetAxisRaw("Horizontal");
         movement.y = Input.GetAxisRaw("Vertical");
 
-        mousePos = cam.ScreenToWorldPoint(Input.mousePosition);
+        if (cam != null)
+            mousePos = cam.ScreenToWorldPoint(Input.mousePosition);
+
+        if (pauseScript == null) return; // guard: don't crash if pause menu missing
 
         if (Input.GetKeyUp(KeyCode.Escape))
         {
@@ -39,11 +62,15 @@ public class PlayerMovement : MonoBehaviour
 
     void FixedUpdate()
     {
+<<<<<<< Updated upstream
         if (rb == null)
         {
             Debug.LogError("[PlayerMovement] rb is NULL — movement is impossible. Assign Rigidbody2D in the Inspector.");
             return;
         }
+=======
+        if (rb == null) return;
+>>>>>>> Stashed changes
 
         rb.MovePosition(rb.position + movement * moveSpeed * Time.fixedDeltaTime);
         Vector2 lookDir = mousePos - rb.position;

@@ -124,6 +124,9 @@ public class RLTrainingManager : MonoBehaviour
             return;
         }
 
+        // Suppress the Game Over UI and timeScale=0 — we handle resets ourselves
+        playerHealthScript.trainingMode = true;
+
         if (enemyHealthScript == null)
         {
             Debug.LogError("RLTrainingManager: TestEnemyHealthScript not found on Enemy!");
@@ -244,12 +247,19 @@ public class RLTrainingManager : MonoBehaviour
         enemyShotsFired = 0;
         enemyShotsHit = 0;
 
-        // Destroy all projectiles FIRST before resetting entities
+        // Destroy all projectiles IMMEDIATELY so none can re-damage
+        // the player on the same frame it reactivates.
         DestroyAllProjectiles();
 
         // Reset player using the clean training-mode API.
         if (player != null)
         {
+            // === CRITICAL: Reset health/isDead BEFORE re-enabling the GameObject ===
+            // If we SetActive(true) first, any overlapping colliders could trigger
+            // TakeDamage → GameOver → SetActive(false) on the same frame.
+            playerHealthScript.ResetForTraining();
+
+            // Move to start position while still inactive (safe)
             player.transform.position = playerStartPosition;
 
             // Hide the Game Over UI if somehow visible.
@@ -304,18 +314,19 @@ public class RLTrainingManager : MonoBehaviour
     /// </summary>
     private void DestroyAllProjectiles()
     {
-        // Destroy all player bullets
+        // Use DestroyImmediate so bullets are removed from the physics world
+        // before the player re-activates on the same frame. Regular Destroy()
+        // defers until end-of-frame, leaving ghost colliders that can re-kill.
         GameObject[] playerBullets = GameObject.FindGameObjectsWithTag("Player Bullet");
         foreach (GameObject bullet in playerBullets)
         {
-            Destroy(bullet);
+            DestroyImmediate(bullet);
         }
 
-        // Destroy all enemy bullets
         GameObject[] enemyBullets = GameObject.FindGameObjectsWithTag("Enemy Bullet");
         foreach (GameObject bullet in enemyBullets)
         {
-            Destroy(bullet);
+            DestroyImmediate(bullet);
         }
     }
 

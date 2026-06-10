@@ -11,6 +11,10 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
     public float stoppingDistance = 3f;
     public float retreatDistance = 2f;
     public float minSafeDistance = 1.5f;  // Minimum safe distance from player
+    [Tooltip("Use hardcoded approach/retreat movement. Disable this for PPO-controlled movement training.")]
+    public bool useScriptedMovement = true;
+    [Tooltip("Automatically disable scripted movement when an EnemyAgent is attached.")]
+    public bool disableScriptedMovementWhenAgentPresent = true;
 
     [Header("Shooting Settings")]
     public GameObject projectile;
@@ -79,6 +83,11 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
         enemyHealthScript.maxHealth = maxHealth;
         enemyHealthScript.currentHealth = maxHealth;
         enemyAgent = GetComponent<EnemyAgent>();
+        if (disableScriptedMovementWhenAgentPresent && enemyAgent != null)
+        {
+            useScriptedMovement = false;
+        }
+
         trainingManager = FindObjectOfType<RLTrainingManager>();
 
         DanmakuDDAController.EnsureExists().RegisterTunable(this);
@@ -92,9 +101,27 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
             return;
         }
 
+        if (useScriptedMovement)
+        {
+            HandleScriptedMovement();
+        }
+
+        // Shooting logic with fireRate and 3-shot spread
+        if (currentTimeBtwShots <= 0)
+        {
+            ShootSpread();
+            currentTimeBtwShots = (fireRate > 0f) ? 1f / fireRate : 1f; // Reset timer based on fireRate
+        }
+        else
+        {
+            currentTimeBtwShots -= Time.deltaTime;
+        }
+    }
+
+    private void HandleScriptedMovement()
+    {
         float distance = Vector2.Distance(transform.position, player.position);
 
-        // Movement logic
         // Retreat when closer than retreatDistance
         if (distance < retreatDistance)
         {
@@ -108,17 +135,6 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
             transform.position = Vector2.MoveTowards(transform.position, player.position, movementSpeed * Time.deltaTime);
         }
         // Otherwise stay in place
-
-        // Shooting logic with fireRate and 3-shot spread
-        if (currentTimeBtwShots <= 0)
-        {
-            ShootSpread();
-            currentTimeBtwShots = (fireRate > 0f) ? 1f / fireRate : 1f; // Reset timer based on fireRate
-        }
-        else
-        {
-            currentTimeBtwShots -= Time.deltaTime;
-        }
     }
 
     /// <summary>

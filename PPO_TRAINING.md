@@ -13,7 +13,7 @@ Open `Assets/Scenes/Testing.unity` in Unity `2022.3.46f1`. The training enemy mu
 `EnemyAgent` now configures its behavior name, observation size, action size, and decision requester at runtime:
 
 - behavior name: `EnemyAgent`
-- vector observations: `9`
+- vector observations: `29` (includes normalized positions of enemy/player, relative player offset/distance/direction, velocities, health metrics, DDA difficulty/pressure, nearest player-bullet features, and arena boundary danger margins)
 - continuous actions: `2`
 - decision period: `5`
 
