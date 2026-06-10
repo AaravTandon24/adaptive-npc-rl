@@ -311,23 +311,32 @@ public class RLTrainingManager : MonoBehaviour
 
 
     /// <summary>
-    /// Destroy all active projectiles in the scene
+    /// Destroy all active projectiles in the scene.
+    /// Disables each bullet's Collider2D immediately (safe during physics callbacks)
+    /// to prevent ghost-collider hits on the frame the player re-activates,
+    /// then schedules the GameObject for end-of-frame cleanup via Destroy().
+    /// DestroyImmediate is forbidden during physics trigger/contact callbacks.
     /// </summary>
     private void DestroyAllProjectiles()
     {
-        // Use DestroyImmediate so bullets are removed from the physics world
-        // before the player re-activates on the same frame. Regular Destroy()
-        // defers until end-of-frame, leaving ghost colliders that can re-kill.
         GameObject[] playerBullets = GameObject.FindGameObjectsWithTag("Player Bullet");
         foreach (GameObject bullet in playerBullets)
         {
-            DestroyImmediate(bullet);
+            if (bullet == null) continue;
+            // Disable the collider first so it can't trigger any more OnCollision/OnTrigger
+            // events before the GameObject is actually removed at end-of-frame.
+            Collider2D col = bullet.GetComponent<Collider2D>();
+            if (col != null) col.enabled = false;
+            Destroy(bullet);
         }
 
         GameObject[] enemyBullets = GameObject.FindGameObjectsWithTag("Enemy Bullet");
         foreach (GameObject bullet in enemyBullets)
         {
-            DestroyImmediate(bullet);
+            if (bullet == null) continue;
+            Collider2D col = bullet.GetComponent<Collider2D>();
+            if (col != null) col.enabled = false;
+            Destroy(bullet);
         }
     }
 
