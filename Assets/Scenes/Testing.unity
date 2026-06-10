@@ -193,7 +193,10 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 7722148092488358324, guid: 97e12ba607bfc8d479e843e980f002f5, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1966290685}
   m_SourcePrefab: {fileID: 100100000, guid: 97e12ba607bfc8d479e843e980f002f5, type: 3}
 --- !u!4 &183223179 stripped
 Transform:
@@ -803,6 +806,7 @@ MonoBehaviour:
   player: {fileID: 1966290677}
   enemy: {fileID: 1757018049}
   episodeTimeLimit: 60
+  maxEpisodes: 500
   currentEpisodeTime: 0
   episodeCount: 0
   playerDamageDealt: 0
@@ -1081,7 +1085,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_BrainParameters:
-    VectorObservationSize: 9
+    VectorObservationSize: 29
     NumStackedVectorObservations: 1
     m_ActionSpec:
       m_NumContinuousActions: 2
@@ -1106,6 +1110,36 @@ GameObject:
   m_CorrespondingSourceObject: {fileID: 7722148092488358324, guid: 97e12ba607bfc8d479e843e980f002f5, type: 3}
   m_PrefabInstance: {fileID: 183223178}
   m_PrefabAsset: {fileID: 0}
+--- !u!114 &1966290685
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1966290677}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fa4005261105ec649b9d797b4338d9ce, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  preferredDistance: 4.5
+  retreatDistance: 2.5
+  approachDistance: 6
+  moveSpeed: 7
+  strafeDecisionTime: 1.2
+  dodgeDuration: 0.4
+  dodgeTriggerRadius: 3.5
+  aimSpeed: 280
+  aimJitter: 6
+  leadPrediction: 0.12
+  burstMin: 2
+  burstMax: 5
+  inBurstDelay: 0.08
+  burstPauseMin: 0.35
+  burstPauseMax: 1.1
+  fireAngleThreshold: 20
+  arenaMin: {x: -8, y: -4.5}
+  arenaMax: {x: 8, y: 4.5}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
