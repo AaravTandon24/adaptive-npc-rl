@@ -107,6 +107,21 @@ public class RLPlayerBot : MonoBehaviour
         if (playerMovement != null)
             playerMovement.enabled = false;
 
+        // Tune parameters to make the bot less aggressive and circle more at a safe, realistic distance
+        moveSpeed = 4.5f;
+        preferredDistance = 6.5f;
+        retreatDistance = 5.0f;
+        approachDistance = 8.0f;
+
+        // Tune aiming to introduce realistic misses but keep it threatening
+        aimSpeed = 220f;
+        aimJitter = 8f;
+        leadPrediction = 0.15f;
+
+        // Make shooting more consistent with shorter pauses
+        burstPauseMin = 0.2f;
+        burstPauseMax = 0.5f;
+
         botActive = true;
         BeginNewBurst();
         Debug.Log("[RLPlayerBot] Active — human-like bot controls this player.");
@@ -317,9 +332,9 @@ public class RLPlayerBot : MonoBehaviour
     void ApplyVelocity(Vector2 vel)
     {
         Vector2 newPos = rb.position + vel * Time.fixedDeltaTime;
-        // Clamp inside arena
-        newPos.x = Mathf.Clamp(newPos.x, arenaMin.x + 0.4f, arenaMax.x - 0.4f);
-        newPos.y = Mathf.Clamp(newPos.y, arenaMin.y + 0.4f, arenaMax.y - 0.4f);
+        // Clamp inside arena (with larger padding to stay fully on-screen)
+        newPos.x = Mathf.Clamp(newPos.x, arenaMin.x + 0.8f, arenaMax.x - 0.8f);
+        newPos.y = Mathf.Clamp(newPos.y, arenaMin.y + 0.8f, arenaMax.y - 0.8f);
         rb.MovePosition(newPos);
     }
 

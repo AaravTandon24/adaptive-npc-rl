@@ -18,6 +18,11 @@
 - Added `RLTrainingSceneSetup` editor tooling to configure the Testing scene, build a training player, and import the trained PPO model.
 - Added trained `EnemyAgent.onnx` model asset under `Assets/ML-Agents/Models/`.
 - Added CSV episode logging for reward, damage, survival, pressure, difficulty, and outcome metrics under `Logs/RLTrainingLogs/`.
+- Added graze (near miss) reward system to `EnemyAgent.cs` for dodging incoming projectiles.
+- Added shaped continuous kiting range rewards to `EnemyAgent.cs` for smooth kiting target gradients.
+- Added progressive survival step-rewards scaling with episode duration to `EnemyAgent.cs`.
+- Added randomized speed capability scaling (`0.2f - 1.0f`) during training resets to cover the speed range.
+- Added model opset conversion utility `convert_model.py` to down-convert ONNX models to opset 15 and embed weights.
 
 ### Changed
 
@@ -29,6 +34,9 @@
 - Updated enemy, wave, random spawn, projectile, and powerup scripts to consume `DifficultyProfile`.
 - Updated player shooting and collision flows to report telemetry for shots fired, hits, damage, and powerup collection.
 - Updated `Assets/Scenes/Testing.unity` so the enemy uses the trained PPO model with 9 vector observations and 2 continuous movement actions.
+- Capped total episode damage penalty to `-0.5f` in `EnemyAgent.cs` to prevent drowning out learning signals.
+- Removed short-episode penalty in `EnemyAgent.cs` to prevent double-punishment.
+- Updated `Testing.unity` scene to pre-configure Behavior Type to `Inference Only` and Vector Observation Size to `29`.
 
 ### Fixed
 
@@ -41,6 +49,7 @@
 - Fixed PPO training scene setup so the enemy has the required `Rigidbody2D`, `EnemyAgent`, `BehaviorParameters`, and `DecisionRequester` components.
 - Fixed trained-model import so rerunning the import replaces the existing `EnemyAgent.onnx` instead of failing when the file already exists.
 - Fixed ONNX export execution by running training with UTF-8 console output and installing the missing exporter dependency.
+- Fixed Unity Sentis model loading crashes (`NullReferenceException` on constant loading) by down-converting exported ONNX model (`v6`) to opset 15.
 
 ### Notes
 
@@ -48,3 +57,4 @@
 - The trained model was exported to `results/enemy_agent_ppo_initial/EnemyAgent.onnx` and imported into `Assets/ML-Agents/Models/EnemyAgent.onnx`.
 - The DDA system remains rule/controller-based; PPO currently controls enemy movement while DDA controls bullet pressure and difficulty tuning.
 - Current verification has been done with `dotnet build adaptive-npc-rl.sln` and Unity batch import of the trained model.
+- Deployed trained PPO model `v6` (`EnemyAgent_v6.onnx`) after completing 341,000 training steps and achieving positive mean rewards of ~`+0.9`.

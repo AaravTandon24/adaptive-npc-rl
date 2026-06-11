@@ -19,7 +19,7 @@ using Unity.MLAgents.Policies;
 ///   falls back to its own health fields.
 /// </summary>
 [RequireComponent(typeof(Rigidbody2D))]
-public class EnemyAgent : Agent
+public class EnemyAgent : Agent, IDifficultyTunable
 {
     [Header("References")]
     [Tooltip("Player Transform (assign in Inspector)")]
@@ -27,19 +27,20 @@ public class EnemyAgent : Agent
 
     [Header("Movement")]
     [Tooltip("Maximum movement speed applied to Rigidbody2D velocity")]
-    public float moveSpeed = 3f;
+    public float moveSpeed = 4.5f;
+    private float baseMoveSpeed; // Tracks inspector moveSpeed for DDA scaling
 
     [Header("Movement Training")]
     [Tooltip("Distance where the enemy is too close to the player")]
-    public float idealRangeMin = 3f;
+    public float idealRangeMin = 5f;
     [Tooltip("Distance where the enemy is too far from the player")]
-    public float idealRangeMax = 6f;
+    public float idealRangeMax = 8f;
     [Tooltip("Arena minimum corner used for boundary observations and rewards")]
     public Vector2 arenaMin = new Vector2(-8f, -4.5f);
     [Tooltip("Arena maximum corner used for boundary observations and rewards")]
     public Vector2 arenaMax = new Vector2(8f, 4.5f);
     [Tooltip("Distance from arena edge that starts producing boundary penalties")]
-    public float boundaryDangerDistance = 0.75f;
+    public float boundaryDangerDistance = 1.2f;
     [Tooltip("Observation radius used to normalize nearest player bullet distance")]
     public float bulletObservationRadius = 10f;
 
@@ -49,33 +50,45 @@ public class EnemyAgent : Agent
 
     [Header("Rewards")]
     [Tooltip("Small positive reward per decision step for staying alive")]
-    public float survivalReward = 0.001f;
-    [Tooltip("Penalty multiplier applied when taking damage")]
-    public float damagePenalty = 0.1f;
+    public float survivalReward = 0.01f;
+    [Tooltip("Penalty multiplier applied when taking damage (per HP lost)")]
+    public float damagePenalty = 0.02f;
     [Tooltip("Reward given when the agent's projectiles hit the player")]
     public float hitReward = 0.3f;
     [Tooltip("Reward for winning (killing player)")]
-    public float winReward = 0.5f;
+    public float winReward = 1.0f;
     [Tooltip("Penalty for dying")]
-    public float deathPenalty = -0.5f;
+    public float deathPenalty = -0.3f;
 
     [Header("Movement Reward Shaping")]
     [Tooltip("Reward for staying in the preferred firing/kiting range")]
-    public float idealRangeReward = 0.003f;
+    public float idealRangeReward = 0.01f;
     [Tooltip("Penalty for being too close to the player")]
-    public float tooClosePenalty = 0.006f;
+    public float tooClosePenalty = 0.015f;
     [Tooltip("Penalty for being too far from the player")]
-    public float tooFarPenalty = 0.002f;
+    public float tooFarPenalty = 0.005f;
     [Tooltip("Reward for moving laterally around the player while in range")]
-    public float lateralMovementReward = 0.002f;
+    public float lateralMovementReward = 0.005f;
     [Tooltip("Penalty for producing almost no movement")]
-    public float idlePenalty = 0.001f;
+    public float idlePenalty = 0.003f;
     [Tooltip("Reward for moving away from an incoming player bullet")]
-    public float dodgeReward = 0.004f;
+    public float dodgeReward = 0.01f;
+    [Tooltip("Reward given when a bullet passes very close to the agent without hitting")]
+    public float nearMissReward = 0.05f;
+    [Tooltip("Radius within which a bullet counts as a near miss/graze")]
+    public float nearMissRadius = 1.2f;
     [Tooltip("Penalty for staying near arena bounds")]
-    public float boundaryPenalty = 0.003f;
+    public float boundaryPenalty = 0.005f;
     [Tooltip("Penalty for abrupt movement direction changes")]
     public float directionChangePenalty = 0.001f;
+
+    // Tracker for bullets that have already triggered a near-miss reward in this episode
+    private HashSet<int> grazedBullets = new HashSet<int>();
+    private float episodeDamagePenaltyAccum = 0f;
+    private const float MAX_DAMAGE_PENALTY = 0.5f;
+
+    [HideInInspector]
+    public float currentSpeedScalar = 1f; // Feeds into observation vector
 
     // Cached components
     private Rigidbody2D rb;
@@ -93,6 +106,12 @@ public class EnemyAgent : Agent
     public override void Initialize()
     {
         rb = GetComponent<Rigidbody2D>();
+        baseMoveSpeed = moveSpeed;
+
+        if (DanmakuDDAController.Instance != null)
+        {
+            DanmakuDDAController.Instance.RegisterTunable(this);
+        }
 
         // Make the enemy kinematic so it cannot physically push the player's Rigidbody2D.
         // The agent drives movement via MovePosition; dynamic physics forces are unwanted here.
@@ -171,6 +190,19 @@ public class EnemyAgent : Agent
         episodeEnded = false;
         episodeStartTime = Time.time;
         previousMove = Vector2.zero;
+        grazedBullets.Clear();
+        episodeDamagePenaltyAccum = 0f;
+
+        // If training manager is active, randomize training difficulty to train across speed spectrum
+        if (FindObjectOfType<RLTrainingManager>() != null)
+        {
+            currentSpeedScalar = Random.Range(0.2f, 1.0f);
+            moveSpeed = baseMoveSpeed * currentSpeedScalar;
+        }
+        else
+        {
+            currentSpeedScalar = 1f;
+        }
 
         // Ensure Rigidbody is not carrying over momentum
         // (kinematic bodies don't use velocity — just zero it for safety)
@@ -316,14 +348,20 @@ public class EnemyAgent : Agent
             rb.MovePosition(rb.position + move * moveSpeed * Time.fixedDeltaTime);
         }
 
-        // Clamp enemy position to arena bounds to prevent drifting off-screen
+        // Clamp enemy position to arena bounds to prevent drifting off-screen (with padding to stay fully on-screen)
         Vector3 clampedPosition = transform.position;
-        clampedPosition.x = Mathf.Clamp(clampedPosition.x, arenaMin.x, arenaMax.x);
-        clampedPosition.y = Mathf.Clamp(clampedPosition.y, arenaMin.y, arenaMax.y);
+        clampedPosition.x = Mathf.Clamp(clampedPosition.x, arenaMin.x + 0.8f, arenaMax.x - 0.8f);
+        clampedPosition.y = Mathf.Clamp(clampedPosition.y, arenaMin.y + 0.8f, arenaMax.y - 0.8f);
         transform.position = clampedPosition;
 
         // Small positive reward each step to encourage survival/active behavior
         AddReward(survivalReward);
+
+        // Progressive survival bonus (surviving longer is rewarded)
+        float episodeElapsed = Time.time - episodeStartTime;
+        float maxEpisodeTime = 60f; // should match RLTrainingManager.episodeTimeLimit
+        float survivalProgress = Mathf.Clamp01(episodeElapsed / maxEpisodeTime);
+        AddReward(0.005f * survivalProgress);
 
         // Add +0.002 per step when player HP ratio is between 0.3-0.7
         float playerHPRatio = GetPlayerHealthNormalized();
@@ -409,19 +447,23 @@ public class EnemyAgent : Agent
 
         float distance = Vector2.Distance(transform.position, player.position);
 
-        // 1. Ideal range reward / penalty
+        // 1. Shaped ideal range reward / penalty (continuous gradient to avoid zero-gradient boundaries)
+        float idealMid = (idealRangeMin + idealRangeMax) / 2f;
+        float rangeReward;
         if (distance >= idealRangeMin && distance <= idealRangeMax)
         {
-            AddReward(idealRangeReward);
+            // Full reward at midpoint, tapers to 0 at edges
+            float rangeWidth = idealMid - idealRangeMin;
+            float normalized = 1f - (Mathf.Abs(distance - idealMid) / rangeWidth);
+            rangeReward = idealRangeReward * normalized;
         }
-        else if (distance < idealRangeMin)
+        else
         {
-            AddReward(-tooClosePenalty);
+            // Penalty that grows with distance from ideal zone
+            float overshoot = distance < idealRangeMin ? (idealRangeMin - distance) : (distance - idealRangeMax);
+            rangeReward = -tooClosePenalty * overshoot;
         }
-        else if (distance > idealRangeMax)
-        {
-            AddReward(-tooFarPenalty);
-        }
+        AddReward(rangeReward);
 
         // 2. Lateral movement reward: perpendicular to player direction
         Vector2 toPlayer = ((Vector2)player.position - (Vector2)transform.position).normalized;
@@ -484,6 +526,23 @@ public class EnemyAgent : Agent
             }
         }
 
+        // 7. Near Miss (Graze) reward
+        GameObject[] playerBullets = GameObject.FindGameObjectsWithTag("Player Bullet");
+        foreach (GameObject bullet in playerBullets)
+        {
+            if (bullet == null) continue;
+            int bulletId = bullet.GetInstanceID();
+            if (grazedBullets.Contains(bulletId)) continue;
+
+            float distToBullet = Vector2.Distance(pos, bullet.transform.position);
+            if (distToBullet > 0.4f && distToBullet <= nearMissRadius)
+            {
+                grazedBullets.Add(bulletId);
+                AddReward(nearMissReward);
+                Debug.Log($"[Graze] reward +{nearMissReward:F2} | bullet {bulletId} | dist {distToBullet:F3}");
+            }
+        }
+
         previousMove = move;
     }
 
@@ -508,8 +567,10 @@ public class EnemyAgent : Agent
             currentHealth = Mathf.Max(0f, currentHealth - damage);
         }
 
-        // Apply immediate penalty
-        AddReward(-damagePenalty * damage);
+        // Apply immediate penalty (capped per episode to avoid destroying the learning signal)
+        float penalty = Mathf.Min(damagePenalty * damage, MAX_DAMAGE_PENALTY - episodeDamagePenaltyAccum);
+        episodeDamagePenaltyAccum += penalty;
+        AddReward(-penalty);
 
         if (currentHealth <= 0f)
         {
@@ -527,12 +588,9 @@ public class EnemyAgent : Agent
         {
             episodeEnded = true;
 
-            // Add -0.3 if episode ends in under 10 seconds
-            float episodeDuration = Time.time - episodeStartTime;
-            if (episodeDuration < 10f)
-            {
-                AddReward(-0.3f);
-            }
+            // Removed the short-episode penalty: it was redundant with the
+            // death penalty and created a double-punishment that made the agent
+            // learn to avoid all action.
 
             base.EndEpisode();
         }
@@ -577,6 +635,12 @@ public class EnemyAgent : Agent
         // ensure Rigidbody is stopped when disabled
         if (rb != null)
             rb.velocity = Vector2.zero;
+    }
+
+    public void ApplyDifficulty(DifficultyProfile profile)
+    {
+        currentSpeedScalar = profile.enemySpeedMultiplier;
+        moveSpeed = baseMoveSpeed * currentSpeedScalar;
     }
 }
 

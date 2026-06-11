@@ -686,7 +686,6 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 5988351667748273001, guid: 14b900929dc11fc428e1055b77d3415d, type: 3}
-    - {fileID: 6586336084731824226, guid: 14b900929dc11fc428e1055b77d3415d, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents:
@@ -1096,9 +1095,9 @@ MonoBehaviour:
     - Move Y
     VectorActionSpaceType: 1
     hasUpgradedBrainParametersWithActionSpec: 1
-  m_Model: {fileID: 5022602860645237092, guid: 0a4e710d65c34f64490ebac747f33dcd, type: 3}
+  m_Model: {fileID: 5022602860645237092, guid: aebd55727c9a9e14f8dfde73c1c472b2, type: 3}
   m_InferenceDevice: 0
-  m_BehaviorType: 0
+  m_BehaviorType: 2
   m_BehaviorName: EnemyAgent
   TeamId: 0
   m_UseChildSensors: 1
@@ -1117,7 +1116,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1966290677}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fa4005261105ec649b9d797b4338d9ce, type: 3}
   m_Name: 
