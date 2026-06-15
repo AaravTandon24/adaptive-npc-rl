@@ -197,6 +197,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 7722148092488358324, guid: 97e12ba607bfc8d479e843e980f002f5, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1966290685}
+    - targetCorrespondingSourceObject: {fileID: 7722148092488358324, guid: 97e12ba607bfc8d479e843e980f002f5, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1966290693}
   m_SourcePrefab: {fileID: 100100000, guid: 97e12ba607bfc8d479e843e980f002f5, type: 3}
 --- !u!4 &183223179 stripped
 Transform:
@@ -802,7 +805,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bb890ec9775445447befcf07a8704c52, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  trainingCondition: 2
+  trainingCondition: 0
   player: {fileID: 1966290677}
   enemy: {fileID: 1757018049}
   episodeTimeLimit: 60
@@ -1198,6 +1201,32 @@ MonoBehaviour:
   fireAngleThreshold: 20
   arenaMin: {x: -8, y: -4.5}
   arenaMax: {x: 8, y: 4.5}
+--- !u!114 &1966290686 stripped
+MonoBehaviour:
+  m_CorrespondingSourceObject: {fileID: 6357047337724099720, guid: 97e12ba607bfc8d479e843e980f002f5, type: 3}
+  m_PrefabInstance: {fileID: 183223178}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1966290677}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 535187aaabdb2ab40938778ca69b492b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &1966290693
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1966290677}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e56a990f0df34e1e8d36b7248fda7414, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  playerLives: {fileID: 1966290686}
+  sampleInterval: 1
+  rollingWindow: 20
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

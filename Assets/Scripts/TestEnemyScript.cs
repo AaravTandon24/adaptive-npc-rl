@@ -43,6 +43,7 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
     private TestEnemyHealthScript enemyHealthScript;
     private EnemyAgent enemyAgent;
     private RLTrainingManager trainingManager;
+    private PlayerPerformanceTelemetry playerTelemetry;
     private float currentTimeBtwShots;
     private float baseFireRate;
     private float baseMovementSpeed;
@@ -89,6 +90,11 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
         }
 
         trainingManager = FindObjectOfType<RLTrainingManager>();
+
+        // Cache player telemetry for shot-hit reporting
+        GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+        if (playerObj != null)
+            playerTelemetry = playerObj.GetComponent<PlayerPerformanceTelemetry>();
 
         DanmakuDDAController.EnsureExists().RegisterTunable(this);
     }
@@ -204,6 +210,16 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
 
             if (trainingManager != null)
                 trainingManager.ReportPlayerDamageDealt(damagePerShot);
+
+            // Report the hit to the player telemetry so accuracy is logged correctly
+            if (playerTelemetry == null)
+            {
+                GameObject playerObj = GameObject.FindGameObjectWithTag("Player");
+                if (playerObj != null)
+                    playerTelemetry = playerObj.GetComponent<PlayerPerformanceTelemetry>();
+            }
+            if (playerTelemetry != null)
+                playerTelemetry.ReportShotHit(damagePerShot);
 
             Destroy(collision.gameObject);
         }

@@ -20,27 +20,39 @@ public class FuzzyTierClassifier : MonoBehaviour
     // -------------------------------------------------------------------------
 
     [Header("Tier UP Thresholds")]
-    [Tooltip("Win-rate value at which winRate_High reaches full membership (1.0).")]
-    public float tierUpWinRate = 0.7f;
+    [Tooltip("Win-rate at which winRate_High starts to rise (>0).")]
+    public float tierUpWinRateStart = 0.7f;
+    [Tooltip("Win-rate at which winRate_High reaches full membership (1.0).")]
+    public float tierUpWinRateEnd = 0.9f;
 
-    [Tooltip("Player HP value at which playerHP_High reaches full membership (1.0).")]
-    public float tierUpPlayerHP = 60f;
+    [Tooltip("Player HP at which playerHP_High starts to rise (>0). Scale: 0-10.")]
+    public float tierUpPlayerHPStart = 2.0f;
+    [Tooltip("Player HP at which playerHP_High reaches full membership (1.0). Scale: 0-10.")]
+    public float tierUpPlayerHPEnd = 5.0f;
 
-    [Tooltip("Damage ratio value at which damageRatio_High reaches full membership (1.0).")]
-    public float tierUpDamageRatio = 1.3f;
+    [Tooltip("Damage ratio at which damageRatio_High starts to rise (>0).")]
+    public float tierUpDamageRatioStart = 5.0f;
+    [Tooltip("Damage ratio at which damageRatio_High reaches full membership (1.0).")]
+    public float tierUpDamageRatioEnd = 15.0f;
 
     [Tooltip("Minimum combined fuzzy membership required to trigger a tier-up.")]
     public float tierUpMembership = 0.6f;
 
     [Header("Tier DOWN Thresholds")]
-    [Tooltip("Win-rate value below which winRate_Low reaches full membership (1.0).")]
-    public float tierDownWinRate = 0.3f;
+    [Tooltip("Win-rate below which winRate_Low starts to rise (>0).")]
+    public float tierDownWinRateStart = 0.5f;
+    [Tooltip("Win-rate below which winRate_Low reaches full membership (1.0).")]
+    public float tierDownWinRateEnd = 0.3f;
 
-    [Tooltip("Player HP value below which playerHP_Low reaches full membership (1.0).")]
-    public float tierDownPlayerHP = 20f;
+    [Tooltip("Player HP below which playerHP_Low starts to rise (>0). Scale: 0-10.")]
+    public float tierDownPlayerHPStart = 3.0f;
+    [Tooltip("Player HP below which playerHP_Low reaches full membership (1.0). Scale: 0-10.")]
+    public float tierDownPlayerHPEnd = 1.0f;
 
-    [Tooltip("Damage ratio value below which damageRatio_Low reaches full membership (1.0).")]
-    public float tierDownDamageRatio = 0.7f;
+    [Tooltip("Damage ratio below which damageRatio_Low starts to rise (>0).")]
+    public float tierDownDamageRatioStart = 6.0f;
+    [Tooltip("Damage ratio below which damageRatio_Low reaches full membership (1.0).")]
+    public float tierDownDamageRatioEnd = 3.0f;
 
     [Tooltip("Minimum combined fuzzy membership required to trigger a tier-down.")]
     public float tierDownMembership = 0.6f;
@@ -147,38 +159,42 @@ public class FuzzyTierClassifier : MonoBehaviour
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// winRate_Low: full membership (1) below 0.3, zero above 0.5.
-    /// Linear ramp from 1 at 0.3 down to 0 at 0.5.
+    /// winRate_Low: full membership (1) below tierDownWinRateEnd, zero above tierDownWinRateStart.
+    /// Linear ramp between them.
     /// </summary>
     public float WinRate_Low(float winRate)
     {
-        // Shoulders: [0, 0.3] → 1.0 ; [0.3, 0.5] → linear decay ; [0.5, 1] → 0.0
-        if (winRate <= 0.3f) return 1f;
-        if (winRate >= 0.5f) return 0f;
-        return 1f - (winRate - 0.3f) / (0.5f - 0.3f);
+        float range = tierDownWinRateStart - tierDownWinRateEnd;
+        if (range <= 0f) return winRate <= tierDownWinRateEnd ? 1f : 0f;
+        if (winRate <= tierDownWinRateEnd) return 1f;
+        if (winRate >= tierDownWinRateStart) return 0f;
+        return 1f - (winRate - tierDownWinRateEnd) / range;
     }
 
     /// <summary>
-    /// winRate_Medium: triangular peak at 0.5, zero at or below 0.3 and at or above 0.7.
+    /// winRate_Medium: triangular peak around the midpoint of Low and High thresholds.
     /// </summary>
     public float WinRate_Medium(float winRate)
     {
-        // Rising: [0.3, 0.5] ; Falling: [0.5, 0.7]
-        if (winRate <= 0.3f || winRate >= 0.7f) return 0f;
-        if (winRate <= 0.5f) return (winRate - 0.3f) / (0.5f - 0.3f);
-        return 1f - (winRate - 0.5f) / (0.7f - 0.5f);
+        float start = tierDownWinRateEnd;
+        float peak = 0.5f;
+        float end = tierUpWinRateEnd;
+
+        if (winRate <= start || winRate >= end) return 0f;
+        if (winRate <= peak) return (winRate - start) / (peak - start);
+        return 1f - (winRate - peak) / (end - peak);
     }
 
     /// <summary>
-    /// winRate_High: zero below 0.5, full membership (1) above 0.7.
-    /// Linear ramp from 0 at 0.5 up to 1 at 0.7.
+    /// winRate_High: zero below tierUpWinRateStart, full membership (1) above tierUpWinRateEnd.
     /// </summary>
     public float WinRate_High(float winRate)
     {
-        // Shoulders: [0, 0.5] → 0.0 ; [0.5, 0.7] → linear rise ; [0.7, 1] → 1.0
-        if (winRate <= 0.5f) return 0f;
-        if (winRate >= 0.7f) return 1f;
-        return (winRate - 0.5f) / (0.7f - 0.5f);
+        float range = tierUpWinRateEnd - tierUpWinRateStart;
+        if (range <= 0f) return winRate >= tierUpWinRateEnd ? 1f : 0f;
+        if (winRate <= tierUpWinRateStart) return 0f;
+        if (winRate >= tierUpWinRateEnd) return 1f;
+        return (winRate - tierUpWinRateStart) / range;
     }
 
     // -------------------------------------------------------------------------
@@ -186,35 +202,37 @@ public class FuzzyTierClassifier : MonoBehaviour
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// playerHP_Low: full membership (1) below 20, zero above 40.
-    /// Linear ramp from 1 at 20 down to 0 at 40.
+    /// playerHP_Low: full membership (1) below tierDownPlayerHPEnd, zero above tierDownPlayerHPStart.
     /// </summary>
     public float PlayerHP_Low(float hp)
     {
-        if (hp <= 20f) return 1f;
-        if (hp >= 40f) return 0f;
-        return 1f - (hp - 20f) / (40f - 20f);
+        float range = tierDownPlayerHPStart - tierDownPlayerHPEnd;
+        if (range <= 0f) return hp <= tierDownPlayerHPEnd ? 1f : 0f;
+        if (hp <= tierDownPlayerHPEnd) return 1f;
+        if (hp >= tierDownPlayerHPStart) return 0f;
+        return 1f - (hp - tierDownPlayerHPEnd) / range;
     }
 
     /// <summary>
-    /// playerHP_Medium: triangular peak at 50, zero at or below 20 and at or above 80.
+    /// playerHP_Medium: triangular peak around 5.0, zero below 2.0 and above 8.0.
     /// </summary>
     public float PlayerHP_Medium(float hp)
     {
-        if (hp <= 20f || hp >= 80f) return 0f;
-        if (hp <= 50f) return (hp - 20f) / (50f - 20f);
-        return 1f - (hp - 50f) / (80f - 50f);
+        if (hp <= 2f || hp >= 8f) return 0f;
+        if (hp <= 5f) return (hp - 2f) / (5f - 2f);
+        return 1f - (hp - 5f) / (8f - 5f);
     }
 
     /// <summary>
-    /// playerHP_High: zero below 60, full membership (1) above 80.
-    /// Linear ramp from 0 at 60 up to 1 at 80.
+    /// playerHP_High: zero below tierUpPlayerHPStart, full membership (1) above tierUpPlayerHPEnd.
     /// </summary>
     public float PlayerHP_High(float hp)
     {
-        if (hp <= 60f) return 0f;
-        if (hp >= 80f) return 1f;
-        return (hp - 60f) / (80f - 60f);
+        float range = tierUpPlayerHPEnd - tierUpPlayerHPStart;
+        if (range <= 0f) return hp >= tierUpPlayerHPEnd ? 1f : 0f;
+        if (hp <= tierUpPlayerHPStart) return 0f;
+        if (hp >= tierUpPlayerHPEnd) return 1f;
+        return (hp - tierUpPlayerHPStart) / range;
     }
 
     // -------------------------------------------------------------------------
@@ -222,18 +240,19 @@ public class FuzzyTierClassifier : MonoBehaviour
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// damageRatio_Low: full membership (1) below 0.5, zero above 1.0.
-    /// Linear ramp from 1 at 0.5 down to 0 at 1.0.
+    /// damageRatio_Low: full membership (1) below tierDownDamageRatioEnd, zero above tierDownDamageRatioStart.
     /// </summary>
     public float DamageRatio_Low(float ratio)
     {
-        if (ratio <= 0.5f) return 1f;
-        if (ratio >= 1.0f) return 0f;
-        return 1f - (ratio - 0.5f) / (1.0f - 0.5f);
+        float range = tierDownDamageRatioStart - tierDownDamageRatioEnd;
+        if (range <= 0f) return ratio <= tierDownDamageRatioEnd ? 1f : 0f;
+        if (ratio <= tierDownDamageRatioEnd) return 1f;
+        if (ratio >= tierDownDamageRatioStart) return 0f;
+        return 1f - (ratio - tierDownDamageRatioEnd) / range;
     }
 
     /// <summary>
-    /// damageRatio_Medium: triangular peak at 1.0, zero at or below 0.5 and at or above 1.5.
+    /// damageRatio_Medium: triangular peak around 1.0, zero below 0.5 and above 1.5.
     /// </summary>
     public float DamageRatio_Medium(float ratio)
     {
@@ -243,13 +262,14 @@ public class FuzzyTierClassifier : MonoBehaviour
     }
 
     /// <summary>
-    /// damageRatio_High: zero below 1.0, full membership (1) above 1.5.
-    /// Linear ramp from 0 at 1.0 up to 1 at 1.5.
+    /// damageRatio_High: zero below tierUpDamageRatioStart, full membership (1) above tierUpDamageRatioEnd.
     /// </summary>
     public float DamageRatio_High(float ratio)
     {
-        if (ratio <= 1.0f) return 0f;
-        if (ratio >= 1.5f) return 1f;
-        return (ratio - 1.0f) / (1.5f - 1.0f);
+        float range = tierUpDamageRatioEnd - tierUpDamageRatioStart;
+        if (range <= 0f) return ratio >= tierUpDamageRatioEnd ? 1f : 0f;
+        if (ratio <= tierUpDamageRatioStart) return 0f;
+        if (ratio >= tierUpDamageRatioEnd) return 1f;
+        return (ratio - tierUpDamageRatioStart) / range;
     }
 }

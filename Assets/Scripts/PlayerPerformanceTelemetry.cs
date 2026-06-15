@@ -130,6 +130,22 @@ public class PlayerPerformanceTelemetry : MonoBehaviour
     public int TotalShotsHit => shotsHit;
     public float TotalDamageDealt => damageDealt;
     public float TotalDamageTaken => damageTaken;
+
+    /// <summary>
+    /// Resets all cumulative counters and clears the snapshot queue.
+    /// Call this at the start of each episode so per-episode metrics are accurate.
+    /// </summary>
+    public void ResetEpisode()
+    {
+        shotsFired = 0;
+        shotsHit   = 0;
+        damageTaken  = 0f;
+        damageDealt  = 0f;
+        powerupsCollected = 0;
+        nearMisses   = 0;
+        snapshots.Clear();
+        nextSampleTime = 0f;
+    }
 }
 
 public struct PlayerDifficultyState

@@ -83,6 +83,16 @@ public class RLTrainingManager : MonoBehaviour
     private float start_spreadAngle = 0f;
     private float start_enemyMoveSpeed = 0f;
 
+    // Pressure captured at episode end, before bullets are destroyed
+    private float capturedPressure = 0f;
+    private float capturedDifficulty = 0f;
+    private int capturedActiveBullets = 0;
+    private BulletPressureAnalyzer pressureAnalyzer;
+
+    // Running pressure average sampled throughout the episode
+    private float runningPressureSum = 0f;
+    private int runningPressureSamples = 0;
+
     // Rolling outcomes for last N episodes for win rate
     private readonly Queue<int> recentOutcomes = new Queue<int>();
     private const int RollingWindowSize = 10;
@@ -95,8 +105,20 @@ public class RLTrainingManager : MonoBehaviour
 
     void Update()
     {
-        if (!episodeActive)
-            return;
+        if (!episodeActive) return;
+
+        // Sample pressure every frame to build a meaningful per-episode average.
+        // Sampling at episode END misses all real threat moments.
+        if (pressureAnalyzer == null)
+        {
+            pressureAnalyzer = FindObjectOfType<BulletPressureAnalyzer>();
+        }
+
+        if (pressureAnalyzer != null)
+        {
+            runningPressureSum += pressureAnalyzer.GetPressureScore();
+            runningPressureSamples++;
+        }
 
         // Update episode timer
         currentEpisodeTime += Time.deltaTime;
@@ -129,6 +151,9 @@ public class RLTrainingManager : MonoBehaviour
         testEnemyScript = enemy.GetComponent<TestEnemyScript>();
         playerTelemetry = player.GetComponent<PlayerPerformanceTelemetry>();
         playerMovement = player.GetComponent<PlayerMovement>();
+
+        // Cache pressure analyzer — works even when DDA component is disabled
+        pressureAnalyzer = FindObjectOfType<BulletPressureAnalyzer>();
 
         // Cache the Game Over UI so we can hide it during episode resets
         gameOverScript = FindObjectOfType<GameOverScript>(true);
@@ -213,6 +238,12 @@ public class RLTrainingManager : MonoBehaviour
         episodeActive = false;
         episodeCount++;
 
+        // Capture average pressure across the episode (sampled every frame).
+        // End-of-episode snapshot is useless because bullets are mid-flight away from the action.
+        capturedPressure      = runningPressureSamples > 0 ? runningPressureSum / runningPressureSamples : 0f;
+        capturedDifficulty    = DanmakuDDAController.Instance != null ? DanmakuDDAController.Instance.currentDifficulty : 0f;
+        capturedActiveBullets = GameObject.FindGameObjectsWithTag("Enemy Bullet").Length;
+
         // Log episode statistics
         LogEpisodeStats();
 
@@ -259,6 +290,14 @@ public class RLTrainingManager : MonoBehaviour
         // Reset enemy telemetry counters
         enemyShotsFired = 0;
         enemyShotsHit = 0;
+
+        // Reset player telemetry so shots/hits/damage are per-episode, not cumulative
+        if (playerTelemetry != null)
+            playerTelemetry.ResetEpisode();
+
+        // Reset pressure accumulator
+        runningPressureSum = 0f;
+        runningPressureSamples = 0;
 
         // Destroy all projectiles IMMEDIATELY so none can re-damage
         // the player on the same frame it reactivates.
@@ -439,9 +478,10 @@ public class RLTrainingManager : MonoBehaviour
         float rollingWinRate = GetRollingWinRate();
         float challengeBalanceScore = 1f - Mathf.Abs(rollingWinRate - 0.5f);
 
-        float pressure = DanmakuDDAController.Instance != null ? DanmakuDDAController.Instance.currentPressure : 0f;
-        float difficulty = DanmakuDDAController.Instance != null ? DanmakuDDAController.Instance.currentDifficulty : 0f;
-        int activeEnemyBullets = GameObject.FindGameObjectsWithTag("Enemy Bullet").Length;
+        // Use values captured before DestroyAllProjectiles() was called in EndEpisode().
+        float pressure        = capturedPressure;
+        float difficulty      = capturedDifficulty;
+        int activeEnemyBullets = capturedActiveBullets;
 
         // Active difficulty values were snapshotted at episode start
         float fireRateValue = start_fireRate;

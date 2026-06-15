@@ -107,20 +107,25 @@ public class RLPlayerBot : MonoBehaviour
         if (playerMovement != null)
             playerMovement.enabled = false;
 
-        // Tune parameters to make the bot less aggressive and circle more at a safe, realistic distance
-        moveSpeed = 4.5f;
-        preferredDistance = 6.5f;
-        retreatDistance = 5.0f;
+        // Weakened bot — slow movement, poor aim, infrequent firing, late dodge reaction.
+        // Goal: ~70-80% win rate on StaticEasy, ~20-30% on StaticHard, ~50% on RuleBasedDDA.
+        moveSpeed        = 3.2f;   // was 4.5 — slower, gets hit more by dense bullet patterns
+        preferredDistance = 6.0f;
+        retreatDistance  = 4.0f;
         approachDistance = 8.0f;
+        dodgeTriggerRadius = 1.8f; // was 3.5 — only reacts to bullets very close
 
-        // Tune aiming to introduce realistic misses but keep it threatening
-        aimSpeed = 220f;
-        aimJitter = 8f;
-        leadPrediction = 0.15f;
+        // Sluggish aiming with high jitter — misses often, especially vs fast bullets
+        aimSpeed         = 130f;   // was 220
+        aimJitter        = 20f;    // was 8
+        leadPrediction   = 0.05f;  // was 0.15 — almost no predictive aim
+        fireAngleThreshold = 10f;  // was 20 — must be nearly perfectly aimed to fire
 
-        // Make shooting more consistent with shorter pauses
-        burstPauseMin = 0.2f;
-        burstPauseMax = 0.5f;
+        // Longer pauses between bursts — fires much less often overall
+        burstMin         = 2;
+        burstMax         = 3;      // was up to 5
+        burstPauseMin    = 0.6f;   // was 0.2
+        burstPauseMax    = 1.8f;   // was 0.5
 
         botActive = true;
         BeginNewBurst();
