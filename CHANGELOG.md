@@ -4,6 +4,21 @@
 
 ### Added
 
+- Added `DifficultyTier.cs` — standalone `public enum DifficultyTier { Easy = 0, Medium = 1, Hard = 2, Expert = 3 }` so the type is available to all scripts without namespace friction.
+- Added `FuzzyTierClassifier.cs` — new `MonoBehaviour` that classifies the player into one of four difficulty tiers using fuzzy logic membership functions evaluated at episode end.
+  - Inputs: `rollingWinRate` (0–1), `playerFinalHP` (0–100), `damageRatio` (0+).
+  - Nine membership functions (Low / Medium / High for each input) using shoulder and triangular shapes.
+  - Tier-UP rule: `min(winRate_High, playerHP_High, damageRatio_High) > tierUpMembership`.
+  - Tier-DOWN rule: `min(winRate_Low, playerHP_Low, damageRatio_Low) > tierDownMembership`.
+  - Guards: 10-episode warm-up + 5-episode cooldown between changes; tier clamped to `[Easy, Expert]`.
+  - All thresholds are Inspector-tweakable via `[Header]` / `[Tooltip]` fields.
+  - Public method `DifficultyTier Evaluate(float, float, float, int)` — evaluates and returns the tier without applying difficulty parameters.
+  - Not yet connected to `DanmakuDDAController`.
+- Updated `RLTrainingManager.cs` to wire up `FuzzyTierClassifier`:
+  - Added `[SerializeField] private FuzzyTierClassifier _tierClassifier;` under a new **"Fuzzy Tier Classifier"** Inspector header.
+  - `WriteEpisodeCsv()` now calls `_tierClassifier.Evaluate()` at episode end using `rollingWinRate`, `playerFinalHP`, and `damageRatio` (∞ clamped to 99). Falls back to `DifficultyTier.Medium` with a warning if the field is not assigned.
+  - Added `current_tier` as the last CSV column (integer: 0 = Easy, 1 = Medium, 2 = Hard, 3 = Expert), appended after `challenge_balance_score`.
+  - `LogEpisodeStats()` logs `[FuzzyTier] Episode N: tier = <Name> (<int>)` after each episode.
 - Added `DanmakuDDAController` for runtime dynamic difficulty adjustment based on player performance and bullet-field pressure.
 - Added `BulletPressureAnalyzer` to estimate bullet-hell danger from active bullets, proximity to the player, projected collision risk, and near misses.
 - Added `PlayerPerformanceTelemetry` to track player health, damage trends, shots fired, shots hit, hit rate, powerups collected, and near misses.

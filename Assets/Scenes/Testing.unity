@@ -802,6 +802,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bb890ec9775445447befcf07a8704c52, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  trainingCondition: 2
   player: {fileID: 1966290677}
   enemy: {fileID: 1757018049}
   episodeTimeLimit: 60
@@ -814,6 +815,7 @@ MonoBehaviour:
   writeEpisodeCsv: 1
   logDirectoryName: RLTrainingLogs
   csvFileName: enemy_agent_episodes.csv
+  _tierClassifier: {fileID: 1696714125}
 --- !u!4 &1521086774
 Transform:
   m_ObjectHideFlags: 0
@@ -973,6 +975,60 @@ RectTransform:
   m_AnchoredPosition: {x: 1678, y: 996}
   m_SizeDelta: {x: 381.5966, y: 90.4355}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1 &1696714124
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1696714126}
+  - component: {fileID: 1696714125}
+  m_Layer: 0
+  m_Name: 'FuzzyTierClassifier '
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1696714125
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1696714124}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d9174eecf0fd9d64d84337c4edc59b33, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  tierUpWinRate: 0.7
+  tierUpPlayerHP: 60
+  tierUpDamageRatio: 1.3
+  tierUpMembership: 0.6
+  tierDownWinRate: 0.3
+  tierDownPlayerHP: 20
+  tierDownDamageRatio: 0.7
+  tierDownMembership: 0.6
+  minEpisodesBeforeFirstChange: 10
+  episodeCooldownBetweenChanges: 5
+--- !u!4 &1696714126
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1696714124}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.29630566, y: 0.1454159, z: 7.000706}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1757018049 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 925482235575821838, guid: 14b900929dc11fc428e1055b77d3415d, type: 3}
@@ -1049,7 +1105,7 @@ MonoBehaviour:
   hasUpgradedFromAgentParameters: 1
   MaxStep: 0
   player: {fileID: 183223179}
-  moveSpeed: 3
+  moveSpeed: 6
   idealRangeMin: 3
   idealRangeMax: 6
   arenaMin: {x: -8, y: -4.5}
@@ -1069,8 +1125,11 @@ MonoBehaviour:
   lateralMovementReward: 0.002
   idlePenalty: 0.001
   dodgeReward: 0.004
+  nearMissReward: 0.05
+  nearMissRadius: 1.2
   boundaryPenalty: 0.003
   directionChangePenalty: 0.001
+  currentSpeedScalar: 1
 --- !u!114 &1757018062
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1095,9 +1154,9 @@ MonoBehaviour:
     - Move Y
     VectorActionSpaceType: 1
     hasUpgradedBrainParametersWithActionSpec: 1
-  m_Model: {fileID: 5022602860645237092, guid: aebd55727c9a9e14f8dfde73c1c472b2, type: 3}
+  m_Model: {fileID: 5022602860645237092, guid: 2719775fdc1b8464e9f3f426435744c3, type: 3}
   m_InferenceDevice: 0
-  m_BehaviorType: 2
+  m_BehaviorType: 0
   m_BehaviorName: EnemyAgent
   TeamId: 0
   m_UseChildSensors: 1
@@ -1116,7 +1175,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1966290677}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fa4005261105ec649b9d797b4338d9ce, type: 3}
   m_Name: 
@@ -1154,3 +1213,4 @@ SceneRoots:
   - {fileID: 1573395448}
   - {fileID: 453817993}
   - {fileID: 1521086774}
+  - {fileID: 1696714126}

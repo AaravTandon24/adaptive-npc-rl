@@ -4,12 +4,22 @@ using System.Globalization;
 using System.IO;
 using UnityEngine;
 
+public enum TrainingCondition
+{
+    StaticEasy,
+    StaticHard,
+    RuleBasedDDA
+}
+
 /// <summary>
 /// GameManager specifically designed for Reinforcement Learning training environment.
 /// Manages episodes between Player and Enemy without scene reloads.
 /// </summary>
 public class RLTrainingManager : MonoBehaviour
 {
+    [Header("Baseline Condition")]
+    public TrainingCondition trainingCondition = TrainingCondition.RuleBasedDDA;
+
     [Header("Entity References")]
     [Tooltip("Reference to the Player GameObject")]
     public GameObject player;
@@ -46,6 +56,10 @@ public class RLTrainingManager : MonoBehaviour
     public string logDirectoryName = "RLTrainingLogs";
     public string csvFileName = "enemy_agent_episodes.csv";
 
+    [Header("Fuzzy Tier Classifier")]
+    [Tooltip("Attach the FuzzyTierClassifier component here.")]
+    [SerializeField] private FuzzyTierClassifier _tierClassifier;
+
     // Private cached references
     private Vector3 playerStartPosition;
     private Vector3 enemyStartPosition;
@@ -75,6 +89,7 @@ public class RLTrainingManager : MonoBehaviour
 
     void Start()
     {
+        csvFileName = GetLogFileName();
         InitializeEpisode();
     }
 
@@ -230,6 +245,8 @@ public class RLTrainingManager : MonoBehaviour
     /// </summary>
     public void ResetEpisode()
     {
+        ApplyTrainingCondition();
+
         // Reset timer
         currentEpisodeTime = 0f;
         lastEpisodeOutcome = "unknown";
@@ -358,7 +375,8 @@ public class RLTrainingManager : MonoBehaviour
         Debug.Log($"Enemy Final HP: {enemyFinalHP}");
         Debug.Log("========================");
 
-        WriteEpisodeCsv(playerFinalHP, enemyFinalHP);
+        DifficultyTier tier = WriteEpisodeCsv(playerFinalHP, enemyFinalHP);
+        Debug.Log($"[FuzzyTier] Episode {episodeCount}: tier = {tier} ({(int)tier})");
     }
 
     private int MapOutcomeToInt(string outcome)
@@ -389,17 +407,12 @@ public class RLTrainingManager : MonoBehaviour
         return (float)sum / recentOutcomes.Count;
     }
 
-    private void WriteEpisodeCsv(float playerFinalHP, float enemyFinalHP)
+    /// <summary>
+    /// Writes per-episode metrics to CSV, evaluates the fuzzy tier classifier,
+    /// appends current_tier as the final column, and returns the resulting tier.
+    /// </summary>
+    private DifficultyTier WriteEpisodeCsv(float playerFinalHP, float enemyFinalHP)
     {
-        if (!writeEpisodeCsv)
-            return;
-
-        string directory = Path.Combine(Application.dataPath, "..", "Logs", logDirectoryName);
-        Directory.CreateDirectory(directory);
-
-        string path = Path.Combine(directory, csvFileName);
-        bool writeHeader = !File.Exists(path);
-
         // Read player telemetry totals (shots / hits / damage)
         int playerShots = playerTelemetry != null ? playerTelemetry.TotalShotsFired : 0;
         int playerHits = playerTelemetry != null ? playerTelemetry.TotalShotsHit : 0;
@@ -417,7 +430,9 @@ public class RLTrainingManager : MonoBehaviour
         // Derived metrics
         float playerAccuracy = playerShots > 0 ? (float)playerHits / playerShots : 0f;
         float enemyAccuracy = enemyShots > 0 ? (float)enemyHits / enemyShots : 0f;
-        float damageRatio = Mathf.Approximately(playerDamageTaken, 0f) ? (playerDamage > 0f ? float.PositiveInfinity : 0f) : playerDamage / playerDamageTaken;
+        float damageRatio = Mathf.Approximately(playerDamageTaken, 0f)
+            ? (playerDamage > 0f ? float.PositiveInfinity : 0f)
+            : playerDamage / playerDamageTaken;
 
         // Update rolling outcomes and compute balance score
         AddRecentOutcome(outcomeNumeric);
@@ -433,6 +448,28 @@ public class RLTrainingManager : MonoBehaviour
         float bulletSpeedValue = start_bulletSpeed;
         float spreadAngleValue = start_spreadAngle;
         float enemyMoveSpeedValue = start_enemyMoveSpeed;
+
+        // ---- Fuzzy tier evaluation ----
+        // Clamp damageRatio to a finite value for the classifier (infinity maps to a very high ratio).
+        float clampedDamageRatio = float.IsInfinity(damageRatio) ? 99f : damageRatio;
+        DifficultyTier currentTier = DifficultyTier.Medium; // default if classifier not wired
+        if (_tierClassifier != null)
+        {
+            currentTier = _tierClassifier.Evaluate(rollingWinRate, playerFinalHP, clampedDamageRatio, episodeCount);
+        }
+        else
+        {
+            Debug.LogWarning("[RLTrainingManager] _tierClassifier is not assigned. Tier defaults to Medium.");
+        }
+
+        if (!writeEpisodeCsv)
+            return currentTier;
+
+        string directory = Path.Combine(Application.dataPath, "..", "Logs", logDirectoryName);
+        Directory.CreateDirectory(directory);
+
+        string path = Path.Combine(directory, csvFileName);
+        bool writeHeader = !File.Exists(path);
 
         using (StreamWriter writer = new StreamWriter(path, true))
         {
@@ -457,7 +494,8 @@ public class RLTrainingManager : MonoBehaviour
                     "enemy_accuracy",
                     "damage_ratio",
                     "rolling_win_rate",
-                    "challenge_balance_score"
+                    "challenge_balance_score",
+                    "current_tier"
                 ));
             }
 
@@ -480,9 +518,12 @@ public class RLTrainingManager : MonoBehaviour
                 enemyAccuracy.ToString("F3", CultureInfo.InvariantCulture),
                 float.IsInfinity(damageRatio) ? "inf" : damageRatio.ToString("F3", CultureInfo.InvariantCulture),
                 rollingWinRate.ToString("F3", CultureInfo.InvariantCulture),
-                challengeBalanceScore.ToString("F3", CultureInfo.InvariantCulture)
+                challengeBalanceScore.ToString("F3", CultureInfo.InvariantCulture),
+                ((int)currentTier).ToString(CultureInfo.InvariantCulture)
             ));
         }
+
+        return currentTier;
     }
 
     /// <summary>
@@ -548,5 +589,47 @@ public class RLTrainingManager : MonoBehaviour
         return episodeTimeLimit > 0 
             ? Mathf.Clamp01(currentEpisodeTime / episodeTimeLimit) 
             : 0f;
+    }
+
+    private void ApplyTrainingCondition()
+    {
+        if (DanmakuDDAController.Instance == null)
+        {
+            Debug.LogWarning("DanmakuDDAController.Instance is null, cannot apply training condition.");
+            return;
+        }
+
+        switch (trainingCondition)
+        {
+            case TrainingCondition.StaticEasy:
+                DanmakuDDAController.Instance.enabled = false;
+                ApplyStaticDifficulty(0f); // 0 = minimum params
+                break;
+            case TrainingCondition.StaticHard:
+                DanmakuDDAController.Instance.enabled = false;
+                ApplyStaticDifficulty(1f); // 1 = maximum params
+                break;
+            case TrainingCondition.RuleBasedDDA:
+                DanmakuDDAController.Instance.enabled = true;
+                break;
+        }
+    }
+
+    private void ApplyStaticDifficulty(float normalizedValue)
+    {
+        // Apply normalizedValue (0–1) directly to DifficultyProfile
+        // to set all parameters to min (0) or max (1)
+        DanmakuDDAController.Instance.ForceSetDifficulty(normalizedValue);
+    }
+
+    private string GetLogFileName()
+    {
+        return trainingCondition switch
+        {
+            TrainingCondition.StaticEasy    => "static_easy.csv",
+            TrainingCondition.StaticHard    => "static_hard.csv",
+            TrainingCondition.RuleBasedDDA  => "rule_based_dda.csv",
+            _                               => "episode_log.csv"
+        };
     }
 }

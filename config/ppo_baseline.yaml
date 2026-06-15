@@ -1,0 +1,21 @@
+behaviors:
+  EnemyAgent:
+    trainer_type: ppo
+    hyperparameters:
+      batch_size: 64
+      buffer_size: 2048
+      learning_rate: 3.0e-4
+      num_epoch: 3
+    network_settings:
+      num_layers: 2
+      hidden_units: 128
+    max_steps: 60000
+    summary_freq: 500
+    keep_checkpoints: 1
+
+engine_settings:
+  time_scale: 20
+  target_frame_rate: -1
+  capture_frame_rate: 60
+  width: 84
+  height: 84

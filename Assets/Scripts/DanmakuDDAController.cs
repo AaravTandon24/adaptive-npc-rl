@@ -131,6 +131,14 @@ public class DanmakuDDAController : MonoBehaviour
         }
     }
 
+    public void ForceSetDifficulty(float normalizedValue)
+    {
+        currentDifficulty = Mathf.Clamp01(normalizedValue);
+        currentProfile = DifficultyProfile.FromPressure(currentDifficulty, maxActiveEnemyBullets);
+        ApplyProfileToScene();
+    }
+
+
     public void OnEpisodeEnd(int currentEpisodeCount)
     {
         // Lock difficulty adjustments during RL training to keep the environment stationary
