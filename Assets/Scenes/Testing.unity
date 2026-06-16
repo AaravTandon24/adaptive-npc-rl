@@ -805,7 +805,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bb890ec9775445447befcf07a8704c52, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  trainingCondition: 0
+  trainingCondition: 2
   player: {fileID: 1966290677}
   enemy: {fileID: 1757018049}
   episodeTimeLimit: 60

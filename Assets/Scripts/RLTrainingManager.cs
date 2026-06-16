@@ -95,6 +95,7 @@ public class RLTrainingManager : MonoBehaviour
 
     // Rolling outcomes for last N episodes for win rate
     private readonly Queue<int> recentOutcomes = new Queue<int>();
+    private readonly Queue<float> recentSurvivalTimes = new Queue<float>();
     private const int RollingWindowSize = 10;
 
     void Start()
@@ -446,6 +447,21 @@ public class RLTrainingManager : MonoBehaviour
         return (float)sum / recentOutcomes.Count;
     }
 
+    private void AddRecentSurvivalTime(float survivalTime)
+    {
+        recentSurvivalTimes.Enqueue(survivalTime);
+        while (recentSurvivalTimes.Count > RollingWindowSize)
+            recentSurvivalTimes.Dequeue();
+    }
+
+    private float GetRollingAvgSurvivalTime()
+    {
+        if (recentSurvivalTimes.Count == 0) return 0f;
+        float sum = 0f;
+        foreach (float v in recentSurvivalTimes) sum += v;
+        return sum / recentSurvivalTimes.Count;
+    }
+
     /// <summary>
     /// Writes per-episode metrics to CSV, evaluates the fuzzy tier classifier,
     /// appends current_tier as the final column, and returns the resulting tier.
@@ -478,6 +494,10 @@ public class RLTrainingManager : MonoBehaviour
         float rollingWinRate = GetRollingWinRate();
         float challengeBalanceScore = 1f - Mathf.Abs(rollingWinRate - 0.5f);
 
+        // Add recent survival time and compute rolling average
+        AddRecentSurvivalTime(timeSurvived);
+        float avgSurvivalTime = GetRollingAvgSurvivalTime();
+
         // Use values captured before DestroyAllProjectiles() was called in EndEpisode().
         float pressure        = capturedPressure;
         float difficulty      = capturedDifficulty;
@@ -490,12 +510,10 @@ public class RLTrainingManager : MonoBehaviour
         float enemyMoveSpeedValue = start_enemyMoveSpeed;
 
         // ---- Fuzzy tier evaluation ----
-        // Clamp damageRatio to a finite value for the classifier (infinity maps to a very high ratio).
-        float clampedDamageRatio = float.IsInfinity(damageRatio) ? 99f : damageRatio;
         DifficultyTier currentTier = DifficultyTier.Medium; // default if classifier not wired
         if (_tierClassifier != null)
         {
-            currentTier = _tierClassifier.Evaluate(rollingWinRate, playerFinalHP, clampedDamageRatio, episodeCount);
+            currentTier = _tierClassifier.Evaluate(rollingWinRate, avgSurvivalTime, episodeCount);
         }
         else
         {

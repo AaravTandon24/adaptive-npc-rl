@@ -41,6 +41,9 @@
 
 ### Changed
 
+- Updated `FuzzyTierClassifier.cs` to use two inputs (`rollingWinRate` and `avgSurvivalTime`) instead of three, removing `damageRatio` and `playerFinalHP` until data quality issues are resolved.
+- Refactored `FuzzyTierClassifier` membership functions and transition rules to use the updated input criteria (threshold > 0.6).
+- Updated `RLTrainingManager.cs` to calculate and track the rolling average survival time over the last 10 episodes and pass it to the updated `Evaluate()` signature.
 - Updated `EnemyAgent` to read PPO continuous action outputs for horizontal and vertical movement instead of using zero movement values.
 - Extended `EnemyAgent` observations with current DDA difficulty and pressure values when the controller is available.
 - Updated `EnemyAgent` to configure ML-Agents `BehaviorParameters` and `DecisionRequester` automatically for the `EnemyAgent` behavior.
