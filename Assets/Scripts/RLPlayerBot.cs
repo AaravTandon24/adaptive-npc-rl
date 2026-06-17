@@ -283,9 +283,12 @@ public class RLPlayerBot : MonoBehaviour
                 Vector2 bDir  = bulletVel.normalized;
                 Vector2 perp1 = new Vector2(-bDir.y,  bDir.x);
                 Vector2 perp2 = new Vector2( bDir.y, -bDir.x);
-                // Pick the dodge side that moves away from the bullet
-                Vector2 toBullet = (Vector2)threat.transform.position - rb.position;
-                dodgeDir    = Vector2.Dot(perp1, toBullet) < 0 ? perp1 : perp2;
+                // BUG-18 fix: pick the side that moves OPPOSITE to the bullet's travel
+                // direction. The old code picked based on bullet position, which could
+                // send the bot into the bullet's path when it arrived from the side.
+                // Dot against -bDir so we choose the perpendicular pointing away from
+                // the direction the bullet is travelling.
+                dodgeDir    = Vector2.Dot(perp1, -bDir) > 0f ? perp1 : perp2;
                 dodgeEndTime = Time.time + dodgeDuration;
                 state        = MoveState.Dodge;
                 ApplyVelocity(dodgeDir * moveSpeed);

@@ -71,7 +71,9 @@ public class RLTrainingManager : MonoBehaviour
     private PlayerPerformanceTelemetry playerTelemetry;
     private GameOverScript gameOverScript;
     private bool episodeActive = false;
-    private string lastEpisodeOutcome = "unknown";
+    // BUG-14 fix: exposed as public so DanmakuDDAController.OnEpisodeEnd() can read
+    // the outcome and avoid penalising wins with low HP.
+    public string lastEpisodeOutcome = "unknown";
 
     // New telemetry counters for enemy
     private int enemyShotsFired = 0;
@@ -88,6 +90,9 @@ public class RLTrainingManager : MonoBehaviour
     private float capturedDifficulty = 0f;
     private int capturedActiveBullets = 0;
     private BulletPressureAnalyzer pressureAnalyzer;
+    // BUG-16 fix: only run FindObjectOfType once when the component is not found;
+    // avoids a full scene scan every frame for the entire training run.
+    private bool _analyzerSearched = false;
 
     // Running pressure average sampled throughout the episode
     private float runningPressureSum = 0f;
@@ -110,9 +115,10 @@ public class RLTrainingManager : MonoBehaviour
 
         // Sample pressure every frame to build a meaningful per-episode average.
         // Sampling at episode END misses all real threat moments.
-        if (pressureAnalyzer == null)
+        if (pressureAnalyzer == null && !_analyzerSearched)
         {
             pressureAnalyzer = FindObjectOfType<BulletPressureAnalyzer>();
+            _analyzerSearched = true;
         }
 
         if (pressureAnalyzer != null)
@@ -295,6 +301,11 @@ public class RLTrainingManager : MonoBehaviour
         // Reset player telemetry so shots/hits/damage are per-episode, not cumulative
         if (playerTelemetry != null)
             playerTelemetry.ResetEpisode();
+
+        // BUG-13 fix: clear the near-miss HashSet in BulletPressureAnalyzer so
+        // reused instance IDs from destroyed bullets don't suppress new near-miss events.
+        if (pressureAnalyzer != null)
+            pressureAnalyzer.ClearEpisode();
 
         // Reset pressure accumulator
         runningPressureSum = 0f;
@@ -494,8 +505,11 @@ public class RLTrainingManager : MonoBehaviour
         float rollingWinRate = GetRollingWinRate();
         float challengeBalanceScore = 1f - Mathf.Abs(rollingWinRate - 0.5f);
 
-        // Add recent survival time and compute rolling average
-        AddRecentSurvivalTime(timeSurvived);
+        // Add recent survival time and compute rolling average.
+        // If the player won (enemy defeated), we treat their survival time for that episode 
+        // as the maximum episode time limit (episodeTimeLimit) since they successfully survived the round.
+        float survivalTimeForTracking = (lastEpisodeOutcome == "enemy_defeated") ? episodeTimeLimit : timeSurvived;
+        AddRecentSurvivalTime(survivalTimeForTracking);
         float avgSurvivalTime = GetRollingAvgSurvivalTime();
 
         // Use values captured before DestroyAllProjectiles() was called in EndEpisode().
@@ -574,7 +588,9 @@ public class RLTrainingManager : MonoBehaviour
                 enemyShots.ToString(CultureInfo.InvariantCulture),
                 enemyHits.ToString(CultureInfo.InvariantCulture),
                 enemyAccuracy.ToString("F3", CultureInfo.InvariantCulture),
-                float.IsInfinity(damageRatio) ? "inf" : damageRatio.ToString("F3", CultureInfo.InvariantCulture),
+                // BUG-15 fix: write a numeric sentinel instead of the string "inf" so that
+                // pandas and other tools can parse the column as float without special handling.
+                float.IsInfinity(damageRatio) ? "999.000" : damageRatio.ToString("F3", CultureInfo.InvariantCulture),
                 rollingWinRate.ToString("F3", CultureInfo.InvariantCulture),
                 challengeBalanceScore.ToString("F3", CultureInfo.InvariantCulture),
                 ((int)currentTier).ToString(CultureInfo.InvariantCulture)

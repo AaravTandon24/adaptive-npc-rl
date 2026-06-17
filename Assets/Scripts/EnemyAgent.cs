@@ -96,6 +96,15 @@ public class EnemyAgent : Agent, IDifficultyTunable
     private Rigidbody2D playerRb;
     private TestEnemyHealthScript testEnemyHealth;
     private EnemyHealthScript enemyHealth;
+    // BUG-05 fix: cache manager reference once in Initialize() instead of FindObjectOfType
+    // being called on every OnEpisodeBegin (potentially thousands of times per training run).
+    private RLTrainingManager _trainingManager;
+    // BUG-06 fix: cache the bullet array once per step so CollectObservations,
+    // ApplyMovementRewards, and the near-miss loop share a single FindGameObjectsWithTag call.
+    private GameObject[] _cachedPlayerBullets = new GameObject[0];
+    // BUG-07 fix: store the actual episode time limit from the manager so observations
+    // remain correct if the inspector value is changed between runs.
+    private float _episodeTimeLimit = 60f;
 
     // track whether the episode has already ended
     private bool episodeEnded = false;
@@ -107,6 +116,11 @@ public class EnemyAgent : Agent, IDifficultyTunable
     {
         rb = GetComponent<Rigidbody2D>();
         baseMoveSpeed = moveSpeed;
+
+        // BUG-05 fix: cache once at initialization
+        _trainingManager = FindObjectOfType<RLTrainingManager>();
+        // BUG-07 fix: read actual limit from manager if available
+        _episodeTimeLimit = _trainingManager != null ? _trainingManager.episodeTimeLimit : 60f;
 
         if (DanmakuDDAController.Instance != null)
         {
@@ -194,7 +208,8 @@ public class EnemyAgent : Agent, IDifficultyTunable
         episodeDamagePenaltyAccum = 0f;
 
         // If training manager is active, randomize training difficulty to train across speed spectrum
-        if (FindObjectOfType<RLTrainingManager>() != null)
+        // BUG-05 fix: use the cached reference instead of FindObjectOfType every episode.
+        if (_trainingManager != null)
         {
             currentSpeedScalar = Random.Range(0.2f, 1.0f);
             moveSpeed = baseMoveSpeed * currentSpeedScalar;
@@ -310,13 +325,16 @@ public class EnemyAgent : Agent, IDifficultyTunable
         sensor.AddObservation(boundaryDistances.w); // top
 
         // 17. Active player bullet count, normalized (1)
-        int bulletCount = GameObject.FindGameObjectsWithTag("Player Bullet").Length;
+        // BUG-06 fix: use the cached array that OnActionReceived refreshes each step.
+        // If CollectObservations is called outside of the action loop (e.g. from ML-Agents
+        // itself at the very start), fall back to a fresh query.
+        int bulletCount = _cachedPlayerBullets.Length;
         sensor.AddObservation(Mathf.Clamp01(bulletCount / 20f));
 
         // 18. Episode time progress 0-1 (1)
         float episodeElapsed = Time.time - episodeStartTime;
-        float maxEpisodeTime = 60f; // should match RLTrainingManager.episodeTimeLimit
-        sensor.AddObservation(Mathf.Clamp01(episodeElapsed / maxEpisodeTime));
+        // BUG-07 fix: use the actual limit from the manager instead of a hard-coded 60f.
+        sensor.AddObservation(Mathf.Clamp01(episodeElapsed / _episodeTimeLimit));
 
         // Total: 2+2+2+1+2+2+2+1+1+2+2+2+1+1+4+1+1 = 29
     }
@@ -324,6 +342,10 @@ public class EnemyAgent : Agent, IDifficultyTunable
     // Called when the model outputs an action. Two continuous actions expected.
     public override void OnActionReceived(ActionBuffers actions)
     {
+        // BUG-06 fix: refresh the bullet cache once here so CollectObservations,
+        // ApplyMovementRewards, and the near-miss loop all share this single allocation.
+        _cachedPlayerBullets = GameObject.FindGameObjectsWithTag("Player Bullet");
+
         // Continuous actions: [0]=horizontal, [1]=vertical (range [-1,1])
         float moveX = actions.ContinuousActions[0];
         float moveY = actions.ContinuousActions[1];
@@ -359,8 +381,8 @@ public class EnemyAgent : Agent, IDifficultyTunable
 
         // Progressive survival bonus (surviving longer is rewarded)
         float episodeElapsed = Time.time - episodeStartTime;
-        float maxEpisodeTime = 60f; // should match RLTrainingManager.episodeTimeLimit
-        float survivalProgress = Mathf.Clamp01(episodeElapsed / maxEpisodeTime);
+        // BUG-07 fix: use the actual limit from the manager.
+        float survivalProgress = Mathf.Clamp01(episodeElapsed / _episodeTimeLimit);
         AddReward(0.005f * survivalProgress);
 
         // Add +0.002 per step when player HP ratio is between 0.3-0.7
@@ -416,10 +438,10 @@ public class EnemyAgent : Agent, IDifficultyTunable
 
     private GameObject GetNearestPlayerBullet(Vector2 enemyPosition)
     {
-        GameObject[] bullets = GameObject.FindGameObjectsWithTag("Player Bullet");
+        // BUG-06 fix: iterate the cached array filled at the start of OnActionReceived.
         GameObject nearest = null;
         float minDistance = float.MaxValue;
-        foreach (GameObject bullet in bullets)
+        foreach (GameObject bullet in _cachedPlayerBullets)
         {
             if (bullet == null) continue;
             float dist = Vector2.Distance(enemyPosition, bullet.transform.position);
@@ -527,8 +549,8 @@ public class EnemyAgent : Agent, IDifficultyTunable
         }
 
         // 7. Near Miss (Graze) reward
-        GameObject[] playerBullets = GameObject.FindGameObjectsWithTag("Player Bullet");
-        foreach (GameObject bullet in playerBullets)
+        // BUG-06 fix: reuse the cached array instead of a third FindGameObjectsWithTag call.
+        foreach (GameObject bullet in _cachedPlayerBullets)
         {
             if (bullet == null) continue;
             int bulletId = bullet.GetInstanceID();

@@ -10,7 +10,9 @@ public class EnemyProjectileScript : MonoBehaviour, IDifficultyTunable
     private Vector2 direction;
     private bool hasHit = false;
     private float baseSpeed;
-    private RLTrainingManager trainingManager;
+    // BUG-10 fix: public so TestEnemyScript.ShootSpread() can inject the cached
+    // reference at spawn time, removing the need for FindObjectOfType in Start().
+    public RLTrainingManager trainingManager;
     public EnemyAgent enemyAgent;
 
     private void Awake()
@@ -25,9 +27,13 @@ public class EnemyProjectileScript : MonoBehaviour, IDifficultyTunable
         if (DanmakuDDAController.Instance != null)
             DanmakuDDAController.Instance.RegisterTunable(this);
 
-        trainingManager = FindObjectOfType<RLTrainingManager>();
-        if (enemyAgent == null)
-            enemyAgent = FindObjectOfType<EnemyAgent>();
+        // BUG-09 / BUG-10 fix: do NOT call FindObjectOfType here.
+        // TestEnemyScript.ShootSpread() already assigns both enemyAgent and
+        // trainingManager at instantiation time. Performing a full scene search
+        // inside every bullet's Start() (potentially dozens per second at max
+        // fire rate) was a significant performance drain with no benefit.
+        if (trainingManager == null)
+            Debug.LogWarning("[EnemyProjectileScript] trainingManager not injected at spawn — shot-hit stats will not be recorded.");
 
         // Use the bullet's initial rotation direction instead of always aiming at player
         // This allows for spread shots from TestEnemyScript

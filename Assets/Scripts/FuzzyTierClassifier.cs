@@ -80,14 +80,16 @@ public class FuzzyTierClassifier : MonoBehaviour
         float stLow  = SurvivalTime_Low(avgSurvivalTime);
 
         // ---- Fuzzy rule: Tier UP ----
-        // Tier UP when: winRate_High AND survivalTime_High
+        // Tier UP when: winRate_High AND survivalTime_High (player wins AND survives long).
         // min(winRate_High, survivalTime_High) > 0.6
         float tierUpStrength = Mathf.Min(wrHigh, stHigh);
 
         // ---- Fuzzy rule: Tier DOWN ----
-        // Tier DOWN when: winRate_Low AND survivalTime_Low
-        // min(winRate_Low, survivalTime_Low) > 0.6
-        float tierDownStrength = Mathf.Min(wrLow, stLow);
+        // Tier DOWN when: winRate_Low is high.
+        // Survival time is intentionally excluded here: when wins are tracked as 60 s,
+        // the rolling average is always >> 15 s even under heavy losses, so an AND-rule
+        // with stLow would never fire. Win rate alone is a sufficient signal for demotion.
+        float tierDownStrength = wrLow;
 
         Debug.Log($"[FuzzyTierClassifier] Episode {episodeCount} | " +
                   $"WR={rollingWinRate:F2} SurvivalTime={avgSurvivalTime:F1} | " +
@@ -120,33 +122,37 @@ public class FuzzyTierClassifier : MonoBehaviour
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// winRate_Low: full membership below 0.2, zero above 0.4.
+    /// winRate_Low: full membership at or below 0.4, zero at or above 0.7.
+    /// Widened from the original (0.2–0.4) so a player winning 50–60 % of games
+    /// can still accumulate enough membership to trigger a Tier DOWN.
     /// </summary>
     public float WinRate_Low(float winRate)
     {
-        if (winRate <= 0.2f) return 1f;
-        if (winRate >= 0.4f) return 0f;
-        return 1f - (winRate - 0.2f) / 0.2f;
+        if (winRate <= 0.4f) return 1f;
+        if (winRate >= 0.7f) return 0f;
+        return 1f - (winRate - 0.4f) / 0.3f;
     }
 
     /// <summary>
-    /// winRate_Medium: peaks at 0.5, zero below 0.3 and above 0.7.
+    /// winRate_Medium: peaks at 0.55, zero below 0.4 and above 0.75.
     /// </summary>
     public float WinRate_Medium(float winRate)
     {
-        if (winRate <= 0.3f || winRate >= 0.7f) return 0f;
-        if (winRate <= 0.5f) return (winRate - 0.3f) / 0.2f;
-        return 1f - (winRate - 0.5f) / 0.2f;
+        if (winRate <= 0.4f || winRate >= 0.75f) return 0f;
+        if (winRate <= 0.55f) return (winRate - 0.4f) / 0.15f;
+        return 1f - (winRate - 0.55f) / 0.2f;
     }
 
     /// <summary>
-    /// winRate_High: zero below 0.6, full membership above 0.8.
+    /// winRate_High: zero at or below 0.7, full membership at or above 0.9.
+    /// Raised from the original (0.6–0.8) to require sustained high performance
+    /// before promoting a player, reducing oscillation at medium win rates.
     /// </summary>
     public float WinRate_High(float winRate)
     {
-        if (winRate <= 0.6f) return 0f;
-        if (winRate >= 0.8f) return 1f;
-        return (winRate - 0.6f) / 0.2f;
+        if (winRate <= 0.7f) return 0f;
+        if (winRate >= 0.9f) return 1f;
+        return (winRate - 0.7f) / 0.2f;
     }
 
     // -------------------------------------------------------------------------

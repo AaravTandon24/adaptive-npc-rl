@@ -103,4 +103,14 @@ public class BulletPressureAnalyzer : MonoBehaviour
         if (reportedNearMisses.Add(id))
             telemetry.ReportNearMiss();
     }
+
+    /// <summary>
+    /// Clears the near-miss tracking set. Call this at the start of each episode
+    /// so that reused GetInstanceID() values from previously destroyed bullets
+    /// cannot suppress near-miss events for newly spawned ones.
+    /// </summary>
+    public void ClearEpisode()
+    {
+        reportedNearMisses.Clear();
+    }
 }

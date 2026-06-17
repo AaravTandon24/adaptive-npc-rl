@@ -63,13 +63,9 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
 
     void Start()
     {
-        baseFireRate = fireRate;
-        baseMovementSpeed = movementSpeed;
-        baseBulletSpeed = bulletSpeed;
-        baseSpreadAngle = spreadAngle;
-        baseBulletsPerBurst = 3;
-        currentBulletsPerBurst = baseBulletsPerBurst;
-
+        // BUG-11 fix: all base* values are already set in Awake(); duplicating them
+        // here was a misleading no-op and would silently override any Awake()-to-Start()
+        // changes. Only post-component logic belongs here.
         FindPlayer();
         currentTimeBtwShots = (fireRate > 0f) ? 1f / fireRate : 1f; // guard against zero
         
@@ -148,6 +144,13 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
     /// </summary>
     private void ShootSpread()
     {
+        // BUG-12 fix: guard against unassigned projectile prefab to avoid NullReferenceException.
+        if (projectile == null)
+        {
+            Debug.LogWarning("[TestEnemyScript] projectile prefab is not assigned!");
+            return;
+        }
+
         if (!CanFireEnemyBullet())
             return;
 
@@ -166,12 +169,14 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
             // Instantiate projectile
             GameObject bullet = Instantiate(projectile, transform.position, bulletRotation);
             
-            // Set bullet speed if it has EnemyProjectileScript
+            // Set bullet speed and inject cached references so bullet Start()
+            // never needs FindObjectOfType (BUG-09 / BUG-10 fix).
             EnemyProjectileScript projectileScript = bullet.GetComponent<EnemyProjectileScript>();
             if (projectileScript != null)
             {
                 projectileScript.speed = bulletSpeed;
                 projectileScript.enemyAgent = enemyAgent;
+                projectileScript.trainingManager = trainingManager; // BUG-10: inject at spawn
             }
 
             // Report shot fired for each instantiated projectile

@@ -819,6 +819,7 @@ MonoBehaviour:
   logDirectoryName: RLTrainingLogs
   csvFileName: enemy_agent_episodes.csv
   _tierClassifier: {fileID: 1696714125}
+  lastEpisodeOutcome: unknown
 --- !u!4 &1521086774
 Transform:
   m_ObjectHideFlags: 0
@@ -1007,14 +1008,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d9174eecf0fd9d64d84337c4edc59b33, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  tierUpWinRate: 0.7
-  tierUpPlayerHP: 60
-  tierUpDamageRatio: 1.3
-  tierUpMembership: 0.6
-  tierDownWinRate: 0.3
-  tierDownPlayerHP: 20
-  tierDownDamageRatio: 0.7
-  tierDownMembership: 0.6
   minEpisodesBeforeFirstChange: 10
   episodeCooldownBetweenChanges: 5
 --- !u!4 &1696714126

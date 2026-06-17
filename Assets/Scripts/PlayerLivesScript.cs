@@ -77,7 +77,8 @@ public class PlayerLivesScript : MonoBehaviour
     public void AddHealth(float health)
     {
         if (isDead || health <= 0) return;
-        currentHealth += health;
+        // BUG-17 fix: cap before UpdateUI() so the UI never flashes an out-of-range value.
+        currentHealth = Mathf.Min(currentHealth + health, maxHealth);
 
         if (telemetry == null)
             telemetry = GetComponent<PlayerPerformanceTelemetry>();
@@ -166,12 +167,8 @@ public class PlayerLivesScript : MonoBehaviour
     {
         if (collision.CompareTag("HealthPowerUp"))
         {
+            // AddHealth() already caps to maxHealth internally (BUG-17 fix).
             AddHealth(2);
-            if (currentHealth > maxHealth)
-            {
-                currentHealth = maxHealth;
-                UpdateUI();
-            }
             Destroy(collision.gameObject);
         }
     }

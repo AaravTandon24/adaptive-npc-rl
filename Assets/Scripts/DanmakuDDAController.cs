@@ -26,6 +26,11 @@ public class DanmakuDDAController : MonoBehaviour
     private RLTrainingManager trainingManager;
     private int lastChangedEpisode = -100;
 
+    // BUG-04 fix: maintain an explicit list of registered tunables so
+    // ApplyProfileToScene() never needs FindObjectsOfType at runtime.
+    private readonly System.Collections.Generic.List<IDifficultyTunable> _tunables =
+        new System.Collections.Generic.List<IDifficultyTunable>();
+
     public DifficultyProfile CurrentProfile => currentProfile;
 
     private float nextUpdateTime;
@@ -85,8 +90,10 @@ public class DanmakuDDAController : MonoBehaviour
 
     public void RegisterTunable(IDifficultyTunable tunable)
     {
-        if (tunable != null)
-            tunable.ApplyDifficulty(currentProfile);
+        if (tunable == null) return;
+        if (!_tunables.Contains(tunable))
+            _tunables.Add(tunable);
+        tunable.ApplyDifficulty(currentProfile);
     }
 
     private void MonitorAnalyzePlanExecute()
@@ -94,8 +101,11 @@ public class DanmakuDDAController : MonoBehaviour
         currentPressure = pressureAnalyzer != null ? pressureAnalyzer.GetPressureScore() : 0f;
         PlayerDifficultyState playerState = telemetry != null ? telemetry.GetPlayerState() : default;
 
+        // BUG-03 fix: the live (non-episode) update path has no episode outcome, so we
+        // conservatively skip the HP penalty when the player is not taking ongoing damage —
+        // rely on damageTakenPerSecond and currentPressure as the reduction signals instead.
         float desiredDifficulty = currentDifficulty;
-        if (currentPressure > maxTargetPressure || playerState.healthPercent < 0.35f || playerState.damageTakenPerSecond > 0.4f)
+        if (currentPressure > maxTargetPressure || playerState.damageTakenPerSecond > 0.4f)
         {
             desiredDifficulty -= maxStepChange;
         }
@@ -122,12 +132,16 @@ public class DanmakuDDAController : MonoBehaviour
 
     private void ApplyProfileToScene()
     {
-        MonoBehaviour[] behaviours = FindObjectsOfType<MonoBehaviour>();
-        foreach (MonoBehaviour behaviour in behaviours)
+        // BUG-04 fix: iterate the pre-registered list instead of scanning all
+        // MonoBehaviours in the scene on every call.
+        for (int i = _tunables.Count - 1; i >= 0; i--)
         {
-            IDifficultyTunable tunable = behaviour as IDifficultyTunable;
-            if (tunable != null)
-                tunable.ApplyDifficulty(currentProfile);
+            if (_tunables[i] == null)
+            {
+                _tunables.RemoveAt(i); // clean up destroyed objects
+                continue;
+            }
+            _tunables[i].ApplyDifficulty(currentProfile);
         }
     }
 
@@ -152,8 +166,15 @@ public class DanmakuDDAController : MonoBehaviour
         currentPressure = pressureAnalyzer != null ? pressureAnalyzer.GetPressureScore() : 0f;
         PlayerDifficultyState playerState = telemetry != null ? telemetry.GetPlayerState() : default;
 
+        // BUG-03 fix: only reduce difficulty for low HP when the player LOST.
+        // If the player won at low HP, the difficulty was already appropriate.
+        bool playerWon = trainingManager != null
+            && trainingManager.lastEpisodeOutcome == "enemy_defeated";
+
         float desiredDifficulty = currentDifficulty;
-        if (currentPressure > maxTargetPressure || playerState.healthPercent < 0.35f || playerState.damageTakenPerSecond > 0.4f)
+        if (currentPressure > maxTargetPressure
+            || (!playerWon && playerState.healthPercent < 0.35f)
+            || playerState.damageTakenPerSecond > 0.4f)
         {
             desiredDifficulty -= 0.05f;
         }
