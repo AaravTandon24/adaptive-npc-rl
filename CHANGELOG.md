@@ -76,3 +76,21 @@
 - The DDA system remains rule/controller-based; PPO currently controls enemy movement while DDA controls bullet pressure and difficulty tuning.
 - Current verification has been done with `dotnet build adaptive-npc-rl.sln` and Unity batch import of the trained model.
 - Deployed trained PPO model `v6` (`EnemyAgent_v6.onnx`) after completing 341,000 training steps and achieving positive mean rewards of ~`+0.9`.
+- Deployed trained PPO model `v7` (`EnemyAgent_v7.onnx`) after completing 639,164 training steps with enhanced threat-awareness observations and danger-zone reward shaping.
+
+## PPO v7 — Enhanced Threat Awareness
+
+### Added
+- **Multi-threat observations**: Track top-3 bullet threats sorted by ascending time-to-impact (5 obs per threat × 3 = 15 total), replacing the single nearest-bullet block (6 obs) and bullet count (1 obs).
+- **Time-to-impact observation**: Each threat slot includes a normalized TTI value (`dist / closingSpeed / maxRelevantTime`) — encodes urgency directly instead of forcing the network to infer from raw distance and velocity.
+- **`BulletThreat` struct** and `GetTopThreats(Vector2, int)` helper method for efficient sorted threat extraction from the cached bullet array.
+- **`DistanceToLineSegment(Vector2, Vector2, Vector2)`** helper for computing perpendicular distance from a point to a projected bullet path segment.
+- **Danger-zone continuous penalty**: Per-step penalty for being inside the projected path of any bullet (`predictionWindow = 0.3s`, `dangerRadius = 1.5f`), proportional to proximity and capped at `−0.03f` per step.
+- Re-added **`currentSpeedScalar`** as an observation (1 obs) — the network can now correlate its own speed with dodge urgency.
+- New Inspector fields: `maxRelevantTime`, `threatCount`, `dangerRadius`, `predictionWindow`, `dangerPenalty`, `maxDangerPenaltyPerStep`.
+
+### Changed
+- **Observation space**: 29 → 38 observations.
+- **PPO network**: `hidden_units` increased from 256 → 320 to accommodate the richer input.
+- **Scene config**: `VectorObservationSize` updated to 38 in `Testing.unity`.
+- `convert_model.py` rewritten to handle ML-Agents' external data file layout and auto-resolve the latest checkpoint.

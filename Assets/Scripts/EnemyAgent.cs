@@ -44,6 +44,20 @@ public class EnemyAgent : Agent, IDifficultyTunable
     [Tooltip("Observation radius used to normalize nearest player bullet distance")]
     public float bulletObservationRadius = 10f;
 
+    [Header("Threat Tracking (v7)")]
+    [Tooltip("Maximum relevant time-to-impact in seconds for normalization")]
+    public float maxRelevantTime = 2f;
+    [Tooltip("Number of bullet threats to track in observations")]
+    public int threatCount = 3;
+    [Tooltip("Radius around projected bullet path that triggers danger penalty")]
+    public float dangerRadius = 1.5f;
+    [Tooltip("Lookahead time (seconds) for projecting bullet paths")]
+    public float predictionWindow = 0.3f;
+    [Tooltip("Per-bullet penalty strength when inside projected danger zone")]
+    public float dangerPenalty = 0.008f;
+    [Tooltip("Maximum total danger penalty applied per step")]
+    public float maxDangerPenaltyPerStep = 0.03f;
+
     [Header("Health (fallback if no health component found)")]
     public float maxHealth = 10f;
     public float currentHealth = 10f;
@@ -96,6 +110,16 @@ public class EnemyAgent : Agent, IDifficultyTunable
     private Rigidbody2D playerRb;
     private TestEnemyHealthScript testEnemyHealth;
     private EnemyHealthScript enemyHealth;
+
+    /// <summary>
+    /// Compact representation of a bullet threat for observation and sorting.
+    /// </summary>
+    private struct BulletThreat
+    {
+        public Vector2 relativePosition;
+        public Vector2 velocityDirection;
+        public float normalizedTimeToImpact;
+    }
     // BUG-05 fix: cache manager reference once in Initialize() instead of FindObjectOfType
     // being called on every OnEpisodeBegin (potentially thousands of times per training run).
     private RLTrainingManager _trainingManager;
@@ -279,64 +303,41 @@ public class EnemyAgent : Agent, IDifficultyTunable
             sensor.AddObservation(0f);
         }
 
-        // Nearest player-bullet (tagged "Player Bullet")
-        GameObject nearestBullet = GetNearestPlayerBullet(enemyPos);
-        Vector2 bulletRelativePos = Vector2.zero;
-        Vector2 bulletVelDir = Vector2.zero;
-        float bulletNormDist = 1f;
-        float isApproaching = 0f;
-
-        if (nearestBullet != null)
+        // 12–26. Top-3 bullet threats sorted by time-to-impact (5 per threat × 3 = 15)
+        var threats = GetTopThreats(enemyPos, threatCount);
+        for (int i = 0; i < threatCount; i++)
         {
-            Vector2 bulletPos = nearestBullet.transform.position;
-            bulletRelativePos = bulletPos - enemyPos;
-            float bulletDist = bulletRelativePos.magnitude;
-            bulletNormDist = Mathf.Clamp01(bulletDist / bulletObservationRadius);
-
-            Vector2 bulletVel = GetBulletVelocity(nearestBullet);
-            if (bulletVel.sqrMagnitude > 0.01f)
+            if (i < threats.Count)
             {
-                bulletVelDir = bulletVel.normalized;
-                Vector2 bulletToEnemy = -bulletRelativePos;
-                if (Vector2.Dot(bulletVelDir, bulletToEnemy.normalized) > 0f)
-                {
-                    isApproaching = 1f;
-                }
+                sensor.AddObservation(threats[i].relativePosition);       // 2
+                sensor.AddObservation(threats[i].velocityDirection);       // 2
+                sensor.AddObservation(threats[i].normalizedTimeToImpact);  // 1
+            }
+            else
+            {
+                // Pad with zeros when fewer bullets exist than slots
+                sensor.AddObservation(Vector2.zero); // 2
+                sensor.AddObservation(Vector2.zero); // 2
+                sensor.AddObservation(1f);            // 1 (max TTI = no threat)
             }
         }
 
-        // 12. Nearest player-bullet relative x/y (2)
-        sensor.AddObservation(bulletRelativePos);
-
-        // 13. Nearest player-bullet velocity direction x/y (2)
-        sensor.AddObservation(bulletVelDir);
-
-        // 14. Nearest player-bullet normalized distance (1)
-        sensor.AddObservation(bulletNormDist);
-
-        // 15. Nearest player-bullet approaching flag (1)
-        sensor.AddObservation(isApproaching);
-
-        // 16. Boundary distances: left, right, bottom, top (4)
+        // 27. Boundary distances: left, right, bottom, top (4)
         Vector4 boundaryDistances = GetNormalizedBoundaryDistances(enemyPos);
         sensor.AddObservation(boundaryDistances.x); // left
         sensor.AddObservation(boundaryDistances.y); // right
         sensor.AddObservation(boundaryDistances.z); // bottom
         sensor.AddObservation(boundaryDistances.w); // top
 
-        // 17. Active player bullet count, normalized (1)
-        // BUG-06 fix: use the cached array that OnActionReceived refreshes each step.
-        // If CollectObservations is called outside of the action loop (e.g. from ML-Agents
-        // itself at the very start), fall back to a fresh query.
-        int bulletCount = _cachedPlayerBullets.Length;
-        sensor.AddObservation(Mathf.Clamp01(bulletCount / 20f));
-
-        // 18. Episode time progress 0-1 (1)
+        // 28. Episode time progress 0-1 (1)
         float episodeElapsed = Time.time - episodeStartTime;
         // BUG-07 fix: use the actual limit from the manager instead of a hard-coded 60f.
         sensor.AddObservation(Mathf.Clamp01(episodeElapsed / _episodeTimeLimit));
 
-        // Total: 2+2+2+1+2+2+2+1+1+2+2+2+1+1+4+1+1 = 29
+        // 29. Current speed scalar (1)
+        sensor.AddObservation(currentSpeedScalar);
+
+        // Total: 2+2+2+1+2+2+2+1+1+2+15+4+1+1 = 38
     }
 
     // Called when the model outputs an action. Two continuous actions expected.
@@ -454,6 +455,79 @@ public class EnemyAgent : Agent, IDifficultyTunable
         return nearest;
     }
 
+    /// <summary>
+    /// Returns the top N bullet threats sorted by ascending time-to-impact.
+    /// </summary>
+    private List<BulletThreat> GetTopThreats(Vector2 enemyPosition, int count)
+    {
+        var threats = new List<BulletThreat>();
+
+        foreach (GameObject bullet in _cachedPlayerBullets)
+        {
+            if (bullet == null) continue;
+
+            Vector2 bulletPos = bullet.transform.position;
+            Vector2 relPos = bulletPos - enemyPosition;
+            float dist = relPos.magnitude;
+
+            // Skip bullets outside observation radius
+            if (dist > bulletObservationRadius) continue;
+
+            Vector2 bulletVel = GetBulletVelocity(bullet);
+            float bulletSpeed = bulletVel.magnitude;
+            Vector2 velDir = bulletSpeed > 0.1f ? bulletVel / bulletSpeed : Vector2.zero;
+
+            // Only consider bullets moving toward the agent
+            if (bulletSpeed > 0.1f)
+            {
+                Vector2 bulletToEnemy = -relPos;
+                if (Vector2.Dot(velDir, bulletToEnemy.normalized) <= 0f)
+                    continue; // moving away — not a threat
+            }
+            else
+            {
+                continue; // stationary — not a threat
+            }
+
+            // Time-to-impact: distance / closing speed
+            float closingSpeed = Mathf.Max(bulletSpeed, 0.01f);
+            float tti = dist / closingSpeed;
+            float normalizedTTI = Mathf.Clamp01(tti / maxRelevantTime);
+
+            threats.Add(new BulletThreat
+            {
+                relativePosition = relPos,
+                velocityDirection = velDir,
+                normalizedTimeToImpact = normalizedTTI
+            });
+        }
+
+        // Sort by ascending TTI (most urgent first)
+        threats.Sort((a, b) => a.normalizedTimeToImpact.CompareTo(b.normalizedTimeToImpact));
+
+        // Return only the top N
+        if (threats.Count > count)
+            threats.RemoveRange(count, threats.Count - count);
+
+        return threats;
+    }
+
+    /// <summary>
+    /// Returns the shortest distance from a point to a line segment.
+    /// </summary>
+    private float DistanceToLineSegment(Vector2 point, Vector2 segStart, Vector2 segEnd)
+    {
+        Vector2 seg = segEnd - segStart;
+        float segLenSq = seg.sqrMagnitude;
+        if (segLenSq < 0.0001f)
+            return Vector2.Distance(point, segStart);
+
+        // Project point onto the line, clamped to [0,1]
+        float t = Mathf.Clamp01(Vector2.Dot(point - segStart, seg) / segLenSq);
+        Vector2 projection = segStart + t * seg;
+        return Vector2.Distance(point, projection);
+    }
+
     private Vector2 GetBulletVelocity(GameObject bullet)
     {
         if (bullet == null) return Vector2.zero;
@@ -563,6 +637,34 @@ public class EnemyAgent : Agent, IDifficultyTunable
                 AddReward(nearMissReward);
                 Debug.Log($"[Graze] reward +{nearMissReward:F2} | bullet {bulletId} | dist {distToBullet:F3}");
             }
+        }
+
+        // 8. Danger-zone penalty: continuous penalty for being inside projected bullet paths
+        float totalDangerPenalty = 0f;
+        foreach (GameObject bullet in _cachedPlayerBullets)
+        {
+            if (bullet == null) continue;
+            Vector2 bulletPos = bullet.transform.position;
+            Vector2 bulletVelDanger = GetBulletVelocity(bullet);
+            if (bulletVelDanger.sqrMagnitude < 0.01f) continue;
+
+            // Only consider bullets within observation radius
+            if (Vector2.Distance(pos, bulletPos) > bulletObservationRadius) continue;
+
+            Vector2 futurePos = bulletPos + bulletVelDanger * predictionWindow;
+            float distToPath = DistanceToLineSegment(pos, bulletPos, futurePos);
+
+            if (distToPath < dangerRadius)
+            {
+                float penaltyAmount = dangerPenalty * (1f - distToPath / dangerRadius);
+                totalDangerPenalty += penaltyAmount;
+            }
+        }
+        // Cap total danger penalty per step
+        totalDangerPenalty = Mathf.Min(totalDangerPenalty, maxDangerPenaltyPerStep);
+        if (totalDangerPenalty > 0f)
+        {
+            AddReward(-totalDangerPenalty);
         }
 
         previousMove = move;

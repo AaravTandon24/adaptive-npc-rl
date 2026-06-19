@@ -12,7 +12,7 @@ behaviors:
       learning_rate_schedule: linear
     network_settings:
       normalize: true
-      hidden_units: 256        # Extra capacity for 29 observations
+      hidden_units: 320        # Extra capacity for 38 observations (v7)
       num_layers: 3            # Add depth for complex spatial tracking
       vis_encode_type: simple
     reward_signals:
