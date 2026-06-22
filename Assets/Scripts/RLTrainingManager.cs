@@ -258,16 +258,16 @@ public class RLTrainingManager : MonoBehaviour
         // Log episode statistics
         LogEpisodeStats();
 
-        if (maxEpisodes > 0 && episodeCount >= maxEpisodes)
-        {
-            Debug.Log($"RLTrainingManager: Reached max episode limit of {maxEpisodes}. Quitting application.");
-            #if UNITY_EDITOR
-            UnityEditor.EditorApplication.isPlaying = false;
-            #else
-            Application.Quit();
-            #endif
-            return;
-        }
+        // if (maxEpisodes > 0 && episodeCount >= maxEpisodes)
+        // {
+        //     Debug.Log($"RLTrainingManager: Reached max episode limit of {maxEpisodes}. Quitting application.");
+        //     #if UNITY_EDITOR
+        //     UnityEditor.EditorApplication.isPlaying = false;
+        //     #else
+        //     Application.Quit();
+        //     #endif
+        //     return;
+        // }
 
         // Route to Agent 2 (DDAAgent) if present; otherwise use rule-based DDA
         if (ddaAgent != null)

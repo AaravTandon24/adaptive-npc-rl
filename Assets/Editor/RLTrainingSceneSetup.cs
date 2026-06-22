@@ -96,9 +96,12 @@ public static class RLTrainingSceneSetup
         if (ddaAgent == null)
             ddaAgent = ddaAgentGo.AddComponent<DDAAgent>();
 
-        // Wire DDAAgent dependencies
+        // Wire DDAAgent dependencies and configure optimal training parameters
         ddaAgent.trainingManager = trainingManager;
         ddaAgent.tierClassifier = Object.FindObjectOfType<FuzzyTierClassifier>();
+        ddaAgent.rewardWindowSize = 10;
+        ddaAgent.closenessBonusWeight = 0.5f;
+        ddaAgent.metaEpisodeLength = 10;
 
         // Wire trainingManager.ddaAgent
         trainingManager.ddaAgent = ddaAgent;
