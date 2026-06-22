@@ -15,7 +15,7 @@ public static class RLTrainingSceneSetup
     private const string TrainedModelCheckpointDirectory = "results/enemy_agent_ppo_initial/EnemyAgent";
     private const string TrainedModelAssetPath = "Assets/ML-Agents/Models/EnemyAgent.onnx";
     private const string BehaviorName = "EnemyAgent";
-    private const int VectorObservationSize = 29;
+    private const int VectorObservationSize = 38;
     private const int ContinuousActionSize = 2;
 
     [MenuItem("Tools/RL/Configure Testing Scene")]
@@ -35,6 +35,9 @@ public static class RLTrainingSceneSetup
             Debug.LogError("RL setup failed: RLTrainingManager.enemy is not assigned.");
             return;
         }
+
+        // Set maxEpisodes to 0 (infinite) for continuous ML-Agents training
+        trainingManager.maxEpisodes = 0;
 
         GameObject enemy = trainingManager.enemy;
         Rigidbody2D rb = enemy.GetComponent<Rigidbody2D>();
@@ -56,7 +59,19 @@ public static class RLTrainingSceneSetup
             behaviorParameters = enemy.AddComponent<BehaviorParameters>();
 
         behaviorParameters.BehaviorName = BehaviorName;
-        behaviorParameters.BehaviorType = BehaviorType.Default;
+        
+        // Freeze Agent 1 (EnemyAgent) during Agent 2 (DDAAgent) training
+        ModelAsset v7Model = AssetDatabase.LoadAssetAtPath<ModelAsset>("Assets/ML-Agents/Models/EnemyAgent_v7.onnx");
+        if (v7Model != null)
+        {
+            behaviorParameters.Model = v7Model;
+            behaviorParameters.BehaviorType = BehaviorType.InferenceOnly;
+        }
+        else
+        {
+            behaviorParameters.BehaviorType = BehaviorType.Default;
+            Debug.LogWarning("EnemyAgent_v7.onnx model not found at Assets/ML-Agents/Models/EnemyAgent_v7.onnx. Set to Default behavior type.");
+        }
         behaviorParameters.BrainParameters.VectorObservationSize = VectorObservationSize;
         behaviorParameters.BrainParameters.NumStackedVectorObservations = 1;
         behaviorParameters.BrainParameters.ActionSpec = ActionSpec.MakeContinuous(ContinuousActionSize);
@@ -70,6 +85,42 @@ public static class RLTrainingSceneSetup
         decisionRequester.DecisionStep = 0;
         decisionRequester.TakeActionsBetweenDecisions = true;
 
+        // Configure DDAAgent (Agent 2)
+        GameObject ddaAgentGo = GameObject.Find("DDAAgent");
+        if (ddaAgentGo == null)
+        {
+            ddaAgentGo = new GameObject("DDAAgent");
+        }
+
+        DDAAgent ddaAgent = ddaAgentGo.GetComponent<DDAAgent>();
+        if (ddaAgent == null)
+            ddaAgent = ddaAgentGo.AddComponent<DDAAgent>();
+
+        // Wire DDAAgent dependencies
+        ddaAgent.trainingManager = trainingManager;
+        ddaAgent.tierClassifier = Object.FindObjectOfType<FuzzyTierClassifier>();
+
+        // Wire trainingManager.ddaAgent
+        trainingManager.ddaAgent = ddaAgent;
+
+        BehaviorParameters ddaBehavior = ddaAgentGo.GetComponent<BehaviorParameters>();
+        if (ddaBehavior == null)
+            ddaBehavior = ddaAgentGo.AddComponent<BehaviorParameters>();
+
+        ddaBehavior.BehaviorName = "DDAAgent";
+        ddaBehavior.BehaviorType = BehaviorType.Default;
+        ddaBehavior.BrainParameters.VectorObservationSize = 10;
+        ddaBehavior.BrainParameters.NumStackedVectorObservations = 1;
+        ddaBehavior.BrainParameters.ActionSpec = ActionSpec.MakeContinuous(4);
+
+        // Remove DecisionRequester if present on DDAAgent
+        DecisionRequester ddaDecisionRequester = ddaAgentGo.GetComponent<DecisionRequester>();
+        if (ddaDecisionRequester != null)
+        {
+            Object.DestroyImmediate(ddaDecisionRequester);
+        }
+
+        EditorUtility.SetDirty(ddaAgentGo);
         EditorUtility.SetDirty(enemy);
         EditorUtility.SetDirty(trainingManager);
         EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());

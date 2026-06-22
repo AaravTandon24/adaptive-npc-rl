@@ -32,7 +32,7 @@ public class RLTrainingManager : MonoBehaviour
     public float episodeTimeLimit = 60f;
 
     [Tooltip("Maximum number of episodes to run (0 for infinite)")]
-    public int maxEpisodes = 500;
+    public int maxEpisodes = 0;
 
     [Header("Episode Tracking (Read-Only)")]
     [Tooltip("Current time elapsed in the episode")]
@@ -59,6 +59,10 @@ public class RLTrainingManager : MonoBehaviour
     [Header("Fuzzy Tier Classifier")]
     [Tooltip("Attach the FuzzyTierClassifier component here.")]
     [SerializeField] private FuzzyTierClassifier _tierClassifier;
+
+    [Header("Agent 2: DDA Agent (Optional)")]
+    [Tooltip("Attach the DDAAgent to use RL-based difficulty control. Leave null for rule-based DDA.")]
+    public DDAAgent ddaAgent;
 
     // Private cached references
     private Vector3 playerStartPosition;
@@ -265,7 +269,12 @@ public class RLTrainingManager : MonoBehaviour
             return;
         }
 
-        if (DanmakuDDAController.Instance != null)
+        // Route to Agent 2 (DDAAgent) if present; otherwise use rule-based DDA
+        if (ddaAgent != null)
+        {
+            ddaAgent.OnGameEpisodeEnd();
+        }
+        else if (DanmakuDDAController.Instance != null)
         {
             DanmakuDDAController.Instance.OnEpisodeEnd(episodeCount);
         }
@@ -450,12 +459,29 @@ public class RLTrainingManager : MonoBehaviour
             recentOutcomes.Dequeue();
     }
 
-    private float GetRollingWinRate()
+    public float GetRollingWinRate()
     {
         if (recentOutcomes.Count == 0) return 0f;
         int sum = 0;
         foreach (int v in recentOutcomes) sum += v;
         return (float)sum / recentOutcomes.Count;
+    }
+
+    /// <summary>
+    /// Returns the win rate over the last N outcomes (up to rolling window size).
+    /// Used for short-window reward calculations.
+    /// </summary>
+    public float GetRecentWinRate(int windowSize)
+    {
+        if (recentOutcomes.Count == 0) return 0f;
+        int count = Mathf.Min(windowSize, recentOutcomes.Count);
+        int sum = 0;
+        int[] outcomes = recentOutcomes.ToArray();
+        for (int i = outcomes.Length - count; i < outcomes.Length; i++)
+        {
+            sum += outcomes[i];
+        }
+        return (float)sum / count;
     }
 
     private void AddRecentSurvivalTime(float survivalTime)
@@ -465,12 +491,43 @@ public class RLTrainingManager : MonoBehaviour
             recentSurvivalTimes.Dequeue();
     }
 
-    private float GetRollingAvgSurvivalTime()
+    public float GetRollingAvgSurvivalTime()
     {
         if (recentSurvivalTimes.Count == 0) return 0f;
         float sum = 0f;
         foreach (float v in recentSurvivalTimes) sum += v;
         return sum / recentSurvivalTimes.Count;
+    }
+
+    /// <summary>
+    /// Returns the last episode outcome as an integer (0=player died, 1=enemy died, 2=timeout).
+    /// Used by DDAAgent for observations.
+    /// </summary>
+    public int GetLastOutcomeNumeric()
+    {
+        return MapOutcomeToInt(lastEpisodeOutcome);
+    }
+
+    /// <summary>
+    /// Returns the player's current HP as a 0–1 percentage.
+    /// Used by DDAAgent for observations.
+    /// </summary>
+    public float GetPlayerHealthPercentage()
+    {
+        if (playerHealthScript != null)
+            return playerHealthScript.RemainingHealthPercentage;
+        return 0f;
+    }
+
+    /// <summary>
+    /// Returns the enemy's current HP as a 0–1 percentage.
+    /// Used by DDAAgent for observations.
+    /// </summary>
+    public float GetEnemyHealthPercentage()
+    {
+        if (enemyHealthScript != null && enemyHealthScript.maxHealth > 0f)
+            return Mathf.Clamp01(enemyHealthScript.currentHealth / enemyHealthScript.maxHealth);
+        return 0f;
     }
 
     /// <summary>
@@ -635,25 +692,7 @@ public class RLTrainingManager : MonoBehaviour
         enemyShotsHit++;
     }
 
-    /// <summary>
-    /// Get current player health percentage (0-1)
-    /// </summary>
-    public float GetPlayerHealthPercentage()
-    {
-        return playerHealthScript != null && playerHealthScript.maxHealth > 0 
-            ? playerHealthScript.currentHealth / playerHealthScript.maxHealth 
-            : 0f;
-    }
 
-    /// <summary>
-    /// Get current enemy health percentage (0-1)
-    /// </summary>
-    public float GetEnemyHealthPercentage()
-    {
-        return enemyHealthScript != null && enemyHealthScript.maxHealth > 0 
-            ? enemyHealthScript.currentHealth / enemyHealthScript.maxHealth 
-            : 0f;
-    }
 
     /// <summary>
     /// Get normalized episode progress (0-1)
@@ -667,33 +706,37 @@ public class RLTrainingManager : MonoBehaviour
 
     private void ApplyTrainingCondition()
     {
-        if (DanmakuDDAController.Instance == null)
+        DanmakuDDAController dda = DanmakuDDAController.EnsureExists();
+        if (dda == null)
         {
-            Debug.LogWarning("DanmakuDDAController.Instance is null, cannot apply training condition.");
+            Debug.LogWarning("DanmakuDDAController is null, cannot apply training condition.");
             return;
         }
 
         switch (trainingCondition)
         {
             case TrainingCondition.StaticEasy:
-                DanmakuDDAController.Instance.enabled = false;
-                ApplyStaticDifficulty(0f); // 0 = minimum params
+                dda.enabled = false;
+                ApplyStaticDifficulty(dda, 0f); // 0 = minimum params
                 break;
             case TrainingCondition.StaticHard:
-                DanmakuDDAController.Instance.enabled = false;
-                ApplyStaticDifficulty(1f); // 1 = maximum params
+                dda.enabled = false;
+                ApplyStaticDifficulty(dda, 1f); // 1 = maximum params
                 break;
             case TrainingCondition.RuleBasedDDA:
-                DanmakuDDAController.Instance.enabled = true;
+                dda.enabled = true;
                 break;
         }
     }
 
-    private void ApplyStaticDifficulty(float normalizedValue)
+    private void ApplyStaticDifficulty(DanmakuDDAController dda, float normalizedValue)
     {
         // Apply normalizedValue (0–1) directly to DifficultyProfile
         // to set all parameters to min (0) or max (1)
-        DanmakuDDAController.Instance.ForceSetDifficulty(normalizedValue);
+        if (dda != null)
+        {
+            dda.ForceSetDifficulty(normalizedValue);
+        }
     }
 
     private string GetLogFileName()

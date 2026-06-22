@@ -52,6 +52,50 @@ public struct DifficultyProfile
         profile.Clamp();
         return profile;
     }
+
+    /// <summary>
+    /// Per-multiplier min/max bounds for a single difficulty tier.
+    /// Used by DDAAgent to constrain its continuous action outputs.
+    /// </summary>
+    [System.Serializable]
+    public struct MultiplierBounds
+    {
+        public float fireRateMin, fireRateMax;
+        public float bulletSpeedMin, bulletSpeedMax;
+        public float spreadAngleMin, spreadAngleMax;
+        public float enemySpeedMin, enemySpeedMax;
+    }
+
+    /// <summary>
+    /// Returns the multiplier bounds for a given tier, derived from the FromPressure()
+    /// Lerp ranges split into 4 equal difficulty bands:
+    ///   Easy   = difficulty [0.00, 0.25]
+    ///   Medium = difficulty [0.25, 0.50]
+    ///   Hard   = difficulty [0.50, 0.75]
+    ///   Expert = difficulty [0.75, 1.00]
+    /// </summary>
+    public static MultiplierBounds GetBoundsForTier(DifficultyTier tier)
+    {
+        // Difficulty band edges for this tier
+        float dLow  = (int)tier * 0.25f;        // 0.00, 0.25, 0.50, 0.75
+        float dHigh = dLow + 0.25f;             // 0.25, 0.50, 0.75, 1.00
+
+        return new MultiplierBounds
+        {
+            // fireRate:    Lerp(0.55, 1.65, d)  — range 1.10, step 0.275 per tier
+            fireRateMin    = Mathf.Lerp(0.55f, 1.65f, dLow),
+            fireRateMax    = Mathf.Lerp(0.55f, 1.65f, dHigh),
+            // bulletSpeed: Lerp(0.65, 1.45, d)  — range 0.80, step 0.200 per tier
+            bulletSpeedMin = Mathf.Lerp(0.65f, 1.45f, dLow),
+            bulletSpeedMax = Mathf.Lerp(0.65f, 1.45f, dHigh),
+            // spreadAngle: Lerp(0.75, 1.35, d)  — range 0.60, step 0.150 per tier
+            spreadAngleMin = Mathf.Lerp(0.75f, 1.35f, dLow),
+            spreadAngleMax = Mathf.Lerp(0.75f, 1.35f, dHigh),
+            // enemySpeed:  Lerp(0.75, 1.35, d)  — range 0.60, step 0.150 per tier
+            enemySpeedMin  = Mathf.Lerp(0.75f, 1.35f, dLow),
+            enemySpeedMax  = Mathf.Lerp(0.75f, 1.35f, dHigh),
+        };
+    }
 }
 
 public interface IDifficultyTunable

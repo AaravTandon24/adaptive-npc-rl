@@ -122,6 +122,98 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &24370105
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 24370108}
+  - component: {fileID: 24370107}
+  - component: {fileID: 24370106}
+  m_Layer: 0
+  m_Name: DDAAgent
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &24370106
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 24370105}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c823b2e136a2f344c8900573ebcde784, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  agentParameters:
+    maxStep: 0
+  hasUpgradedFromAgentParameters: 1
+  MaxStep: 0
+  trainingManager: {fileID: 1521086773}
+  tierClassifier: {fileID: 1696714125}
+  metaEpisodeLength: 10
+  maxStepChange: 0.2
+  closenessBonusWeight: 0
+  blowoutPenalty: 0
+  blowoutHPThreshold: 0.8
+  rewardWindowSize: 3
+  currentNormalizedFireRate: 0.5
+  currentNormalizedBulletSpeed: 0.5
+  currentNormalizedSpreadAngle: 0.5
+  currentNormalizedEnemySpeed: 0.5
+--- !u!114 &24370107
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 24370105}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5d1c4e0b1822b495aa52bc52839ecb30, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_BrainParameters:
+    VectorObservationSize: 10
+    NumStackedVectorObservations: 1
+    m_ActionSpec:
+      m_NumContinuousActions: 4
+      BranchSizes: 
+    VectorActionSize: 04000000
+    VectorActionDescriptions: []
+    VectorActionSpaceType: 1
+    hasUpgradedBrainParametersWithActionSpec: 1
+  m_Model: {fileID: 0}
+  m_InferenceDevice: 0
+  m_BehaviorType: 0
+  m_BehaviorName: DDAAgent
+  TeamId: 0
+  m_UseChildSensors: 1
+  m_UseChildActuators: 1
+  m_DeterministicInference: 0
+  m_ObservableAttributeHandling: 0
+--- !u!4 &24370108
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 24370105}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &183223178
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -809,7 +901,7 @@ MonoBehaviour:
   player: {fileID: 1966290677}
   enemy: {fileID: 1757018049}
   episodeTimeLimit: 60
-  maxEpisodes: 500
+  maxEpisodes: 0
   currentEpisodeTime: 0
   episodeCount: 0
   playerDamageDealt: 0
@@ -819,6 +911,7 @@ MonoBehaviour:
   logDirectoryName: RLTrainingLogs
   csvFileName: enemy_agent_episodes.csv
   _tierClassifier: {fileID: 1696714125}
+  ddaAgent: {fileID: 24370106}
   lastEpisodeOutcome: unknown
 --- !u!4 &1521086774
 Transform:
@@ -1108,6 +1201,12 @@ MonoBehaviour:
   arenaMax: {x: 8, y: 4.5}
   boundaryDangerDistance: 0.75
   bulletObservationRadius: 10
+  maxRelevantTime: 2
+  threatCount: 3
+  dangerRadius: 1.5
+  predictionWindow: 0.3
+  dangerPenalty: 0.008
+  maxDangerPenaltyPerStep: 0.03
   maxHealth: 10
   currentHealth: 10
   survivalReward: 0.001
@@ -1150,7 +1249,7 @@ MonoBehaviour:
     - Move Y
     VectorActionSpaceType: 1
     hasUpgradedBrainParametersWithActionSpec: 1
-  m_Model: {fileID: 5022602860645237092, guid: 2719775fdc1b8464e9f3f426435744c3, type: 3}
+  m_Model: {fileID: 5022602860645237092, guid: 5e057199daacebe4296748ec8cfa2234, type: 3}
   m_InferenceDevice: 0
   m_BehaviorType: 2
   m_BehaviorName: EnemyAgent
@@ -1236,3 +1335,4 @@ SceneRoots:
   - {fileID: 453817993}
   - {fileID: 1521086774}
   - {fileID: 1696714126}
+  - {fileID: 24370108}

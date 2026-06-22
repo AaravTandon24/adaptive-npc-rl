@@ -152,6 +152,17 @@ public class DanmakuDDAController : MonoBehaviour
         ApplyProfileToScene();
     }
 
+    /// <summary>
+    /// Called by DDAAgent to apply a custom difficulty profile directly,
+    /// bypassing rule-based logic. Updates currentProfile and pushes to all tunables.
+    /// </summary>
+    public void ApplyAgentProfile(DifficultyProfile profile)
+    {
+        profile.Clamp();
+        currentProfile = profile;
+        ApplyProfileToScene();
+    }
+
 
     public void OnEpisodeEnd(int currentEpisodeCount)
     {
