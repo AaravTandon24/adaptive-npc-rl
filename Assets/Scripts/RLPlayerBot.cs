@@ -113,7 +113,7 @@ public class RLPlayerBot : MonoBehaviour
         preferredDistance = 6.0f;
         retreatDistance  = 4.0f;
         approachDistance = 8.0f;
-        dodgeTriggerRadius = 1.8f; // was 3.5 — only reacts to bullets very close
+        dodgeTriggerRadius = 2.5f; // was 3.5 — increased from 1.8f to prevent cheese from slow bullet walls
 
         // Sluggish aiming with high jitter — misses often, especially vs fast bullets
         aimSpeed         = 130f;   // was 220

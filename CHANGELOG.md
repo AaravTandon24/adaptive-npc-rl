@@ -38,6 +38,7 @@
 - Added progressive survival step-rewards scaling with episode duration to `EnemyAgent.cs`.
 - Added randomized speed capability scaling (`0.2f - 1.0f`) during training resets to cover the speed range.
 - Added model opset conversion utility `convert_model.py` to down-convert ONNX models to opset 15 and embed weights.
+- Added `extremeValuePenaltyWeight` to `DDAAgent.cs` to penalize extreme outputs (0 or 1), forcing the agent to use moderate difficulty tweaks rather than cheesing the player bot.
 
 ### Changed
 
@@ -55,6 +56,8 @@
 - Capped total episode damage penalty to `-0.5f` in `EnemyAgent.cs` to prevent drowning out learning signals.
 - Removed short-episode penalty in `EnemyAgent.cs` to prevent double-punishment.
 - Updated `Testing.unity` scene to pre-configure Behavior Type to `Inference Only` and Vector Observation Size to `29`.
+- Converted `DDAAgent.cs` continuous action space from relative deltas to absolute normalized values. This prevents difficulty parameters from permanently drifting and locking at 0 or 1.
+- Increased `dodgeTriggerRadius` in `RLPlayerBot.cs` from `1.8f` to `2.5f` to prevent the DDA agent from exploiting the bot's pathfinding with slow bullet walls.
 
 ### Fixed
 
@@ -68,6 +71,7 @@
 - Fixed trained-model import so rerunning the import replaces the existing `EnemyAgent.onnx` instead of failing when the file already exists.
 - Fixed ONNX export execution by running training with UTF-8 console output and installing the missing exporter dependency.
 - Fixed Unity Sentis model loading crashes (`NullReferenceException` on constant loading) by down-converting exported ONNX model (`v6`) to opset 15.
+- Fixed `convert_model.py` to sort checkpoints by file modification time instead of parsed step number, ensuring the correct newest model is picked when restarting training under the same run ID.
 
 ### Notes
 

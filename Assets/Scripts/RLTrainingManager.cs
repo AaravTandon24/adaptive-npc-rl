@@ -93,6 +93,12 @@ public class RLTrainingManager : MonoBehaviour
     private float capturedPressure = 0f;
     private float capturedDifficulty = 0f;
     private int capturedActiveBullets = 0;
+    
+    // Captured metrics for RL observations (persisting across resets)
+    private float capturedPlayerHPPercentage = 1f;
+    private float capturedEnemyHPPercentage = 1f;
+    private int capturedOutcomeNumeric = 2;
+    
     private BulletPressureAnalyzer pressureAnalyzer;
     // BUG-16 fix: only run FindObjectOfType once when the component is not found;
     // avoids a full scene scan every frame for the entire training run.
@@ -254,6 +260,11 @@ public class RLTrainingManager : MonoBehaviour
         capturedPressure      = runningPressureSamples > 0 ? runningPressureSum / runningPressureSamples : 0f;
         capturedDifficulty    = DanmakuDDAController.Instance != null ? DanmakuDDAController.Instance.currentDifficulty : 0f;
         capturedActiveBullets = GameObject.FindGameObjectsWithTag("Enemy Bullet").Length;
+
+        // Snapshot episode outcomes before resetting values
+        capturedPlayerHPPercentage = GetPlayerHealthPercentage();
+        capturedEnemyHPPercentage  = GetEnemyHealthPercentage();
+        capturedOutcomeNumeric     = GetLastOutcomeNumeric();
 
         // Log episode statistics
         LogEpisodeStats();
@@ -529,6 +540,10 @@ public class RLTrainingManager : MonoBehaviour
             return Mathf.Clamp01(enemyHealthScript.currentHealth / enemyHealthScript.maxHealth);
         return 0f;
     }
+
+    public float GetLastEpisodePlayerHPPercentage() => capturedPlayerHPPercentage;
+    public float GetLastEpisodeEnemyHPPercentage() => capturedEnemyHPPercentage;
+    public int GetLastEpisodeOutcomeNumeric() => capturedOutcomeNumeric;
 
     /// <summary>
     /// Writes per-episode metrics to CSV, evaluates the fuzzy tier classifier,

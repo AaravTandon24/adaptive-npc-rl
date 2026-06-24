@@ -46,15 +46,7 @@ def find_model_with_data(run_dir):
     if not onnx_files:
         return None
 
-    # Sort by step number (extracted from filename like EnemyAgent-639164.onnx)
-    def extract_step(item):
-        name = item[1]
-        parts = name.rsplit("-", 1)
-        if len(parts) == 2 and parts[1].isdigit():
-            return int(parts[1])
-        return 0
-
-    onnx_files.sort(key=extract_step, reverse=True)
+    onnx_files.sort(key=lambda item: os.path.getmtime(item[0]), reverse=True)
     return onnx_files[0][0]
 
 

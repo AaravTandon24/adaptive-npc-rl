@@ -27,8 +27,8 @@ behaviors:
   DDAAgent:
     trainer_type: ppo
     hyperparameters:
-      batch_size: 16           # Smaller batches for small observation space
-      buffer_size: 64          # Update network 4x more frequently (every 6.4 meta-episodes)
+      batch_size: 64           # Increased batch size for stable policy updates
+      buffer_size: 512         # Larger buffer size for representative PPO experience
       learning_rate: 3.0e-4
       beta: 1.0e-3             # Lower entropy to accelerate policy exploitation
       epsilon: 0.2

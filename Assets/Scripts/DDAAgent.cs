@@ -48,6 +48,9 @@ public class DDAAgent : Agent
     [Tooltip("HP threshold above which a win is considered a blowout")]
     public float blowoutHPThreshold = 0.8f;
 
+    [Tooltip("Penalty applied when continuous outputs are at extremes (0 or 1) to prevent cheese strategies.")]
+    public float extremeValuePenaltyWeight = 0.2f;
+
     [Tooltip("The window size for computing the win rate used for the step reward")]
     public int rewardWindowSize = 10;
 
@@ -85,6 +88,9 @@ public class DDAAgent : Agent
         // Refresh tier and bounds at meta-episode start (multipliers persist for training continuity)
         currentTier = tierClassifier != null ? tierClassifier.CurrentTier : DifficultyTier.Medium;
         currentBounds = DifficultyProfile.GetBoundsForTier(currentTier);
+
+        // Request the first difficulty decision for the beginning of the meta-episode
+        RequestDecision();
     }
 
     /// <summary>
@@ -104,15 +110,15 @@ public class DDAAgent : Agent
         sensor.AddObservation(Mathf.Clamp01(avgSurvival / episodeLimit));
 
         // 3. Last episode outcome: 0=player died, 1=enemy died, 2=timeout (1)
-        int outcome = trainingManager != null ? trainingManager.GetLastOutcomeNumeric() : 2;
+        int outcome = trainingManager != null ? trainingManager.GetLastEpisodeOutcomeNumeric() : 2;
         sensor.AddObservation(outcome / 2f); // normalize to 0-1
 
         // 4. Player final HP (normalized 0-1) (1)
-        float playerHP = trainingManager != null ? trainingManager.GetPlayerHealthPercentage() : 0.5f;
+        float playerHP = trainingManager != null ? trainingManager.GetLastEpisodePlayerHPPercentage() : 0.5f;
         sensor.AddObservation(playerHP);
 
         // 5. Enemy final HP (normalized 0-1) (1)
-        float enemyHP = trainingManager != null ? trainingManager.GetEnemyHealthPercentage() : 0.5f;
+        float enemyHP = trainingManager != null ? trainingManager.GetLastEpisodeEnemyHPPercentage() : 0.5f;
         sensor.AddObservation(enemyHP);
 
         // 6. Current tier (normalized 0-1) (1)
@@ -143,11 +149,11 @@ public class DDAAgent : Agent
         float a2 = Mathf.Clamp(actions.ContinuousActions[2], -1f, 1f);
         float a3 = Mathf.Clamp(actions.ContinuousActions[3], -1f, 1f);
 
-        // Apply relative step deltas in normalized space [0, 1]
-        currentNormalizedFireRate    = Mathf.Clamp01(currentNormalizedFireRate    + a0 * maxStepChange);
-        currentNormalizedBulletSpeed = Mathf.Clamp01(currentNormalizedBulletSpeed + a1 * maxStepChange);
-        currentNormalizedSpreadAngle = Mathf.Clamp01(currentNormalizedSpreadAngle + a2 * maxStepChange);
-        currentNormalizedEnemySpeed  = Mathf.Clamp01(currentNormalizedEnemySpeed  + a3 * maxStepChange);
+        // Apply absolute actions mapped from [-1, 1] to normalized space [0, 1]
+        currentNormalizedFireRate    = (a0 + 1f) / 2f;
+        currentNormalizedBulletSpeed = (a1 + 1f) / 2f;
+        currentNormalizedSpreadAngle = (a2 + 1f) / 2f;
+        currentNormalizedEnemySpeed  = (a3 + 1f) / 2f;
 
         // Build a DifficultyProfile from the agent's outputs
         DifficultyProfile profile = DifficultyProfile.Default;
@@ -232,13 +238,28 @@ public class DDAAgent : Agent
             }
         }
 
+        // Penalty for extreme values (cheese prevention)
+        float extremePenaltyVal = 0f;
+        if (extremeValuePenaltyWeight > 0f)
+        {
+            float p0 = Mathf.Abs(currentNormalizedFireRate - 0.5f) * 2f;
+            float p1 = Mathf.Abs(currentNormalizedBulletSpeed - 0.5f) * 2f;
+            float p2 = Mathf.Abs(currentNormalizedSpreadAngle - 0.5f) * 2f;
+            float p3 = Mathf.Abs(currentNormalizedEnemySpeed - 0.5f) * 2f;
+            float avgExtreme = (p0 + p1 + p2 + p3) / 4f;
+            
+            extremePenaltyVal = -extremeValuePenaltyWeight * avgExtreme;
+            AddReward(extremePenaltyVal);
+            totalAddedReward += extremePenaltyVal;
+        }
+
         if (debugLogging)
         {
             string outcomeStr = trainingManager != null ? trainingManager.lastEpisodeOutcome : "unknown";
             int episodeNum = trainingManager != null ? trainingManager.episodeCount : 0;
             Debug.Log($"[DDAAgent Reward] Game Episode {episodeNum} | Outcome: {outcomeStr} | WinRate ({rewardWindowSize}-ep window): {winRate:P0} | " +
                       $"Balance Reward: {balanceReward:F3} | Closeness Bonus: {closenessBonusVal * closenessBonusWeight:F3} | " +
-                      $"Blowout Penalty: {blowoutPenaltyVal:F3} | Step Reward: {totalAddedReward:F3} | Total Cumulative Reward: {GetCumulativeReward():F3}");
+                      $"Blowout Penalty: {blowoutPenaltyVal:F3} | Extreme Penalty: {extremePenaltyVal:F3} | Step Reward: {totalAddedReward:F3} | Total Cumulative Reward: {GetCumulativeReward():F3}");
         }
 
         // --- Meta-episode boundary ---

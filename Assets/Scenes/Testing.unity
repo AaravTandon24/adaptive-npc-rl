@@ -160,10 +160,11 @@ MonoBehaviour:
   tierClassifier: {fileID: 1696714125}
   metaEpisodeLength: 10
   maxStepChange: 0.2
-  closenessBonusWeight: 0
+  closenessBonusWeight: 0.5
   blowoutPenalty: 0
   blowoutHPThreshold: 0.8
-  rewardWindowSize: 3
+  rewardWindowSize: 10
+  debugLogging: 1
   currentNormalizedFireRate: 0.5
   currentNormalizedBulletSpeed: 0.5
   currentNormalizedSpreadAngle: 0.5
