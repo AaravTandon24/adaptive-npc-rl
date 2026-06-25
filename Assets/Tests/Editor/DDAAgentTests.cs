@@ -79,42 +79,58 @@ public class DDAAgentTests
         Object.DestroyImmediate(go);
     }
 
+    /// <summary>
+    /// Verifies the absolute action mapping used by DDAAgent.OnActionReceived.
+    ///
+    /// DDAAgent converts continuous actions from [-1, 1] to a normalised [0, 1]
+    /// value via  normalised = (action + 1) / 2, then writes that directly as the
+    /// current multiplier — there is NO delta accumulation.
+    ///
+    /// Replaces the old TestDeltaActionClamping which tested an earlier delta-based
+    /// design that was removed to prevent multiplier drift.
+    /// </summary>
     [Test]
-    public void TestDeltaActionClamping()
+    public void TestAbsoluteActionMapping()
     {
         GameObject go = new GameObject("TestDDAAgent");
         var ddaAgent = go.AddComponent<DDAAgent>();
-        
-        // Mock maxStepChange and initial state
-        ddaAgent.maxStepChange = 0.2f;
-        ddaAgent.currentNormalizedFireRate = 0.5f;
 
-        // Simulate ActionBuffers with action = +1f (increase)
-        var actions = new Unity.MLAgents.Actuators.ActionBuffers(
-            new float[] { 1.0f, 0.0f, 0.0f, 0.0f },
+        // action = +1.0 → (1.0 + 1) / 2 = 1.0
+        var maxActions = new Unity.MLAgents.Actuators.ActionBuffers(
+            new float[] { 1.0f, 1.0f, 1.0f, 1.0f },
             new int[] { }
         );
+        ddaAgent.OnActionReceived(maxActions);
+        Assert.AreEqual(1.0f, ddaAgent.currentNormalizedFireRate,    0.001f, "FireRate should be 1.0 for action +1");
+        Assert.AreEqual(1.0f, ddaAgent.currentNormalizedBulletSpeed, 0.001f, "BulletSpeed should be 1.0 for action +1");
+        Assert.AreEqual(1.0f, ddaAgent.currentNormalizedSpreadAngle, 0.001f, "SpreadAngle should be 1.0 for action +1");
+        Assert.AreEqual(1.0f, ddaAgent.currentNormalizedEnemySpeed,  0.001f, "EnemySpeed should be 1.0 for action +1");
 
-        ddaAgent.OnActionReceived(actions);
-
-        // Normalized fire rate should increase by 1.0 * maxStepChange (0.2) -> 0.7
-        Assert.AreEqual(0.7f, ddaAgent.currentNormalizedFireRate, 0.001f);
-
-        // Apply action = +1f again -> 0.9
-        ddaAgent.OnActionReceived(actions);
-        Assert.AreEqual(0.9f, ddaAgent.currentNormalizedFireRate, 0.001f);
-
-        // Apply action = +1f again -> 1.0 (clamped)
-        ddaAgent.OnActionReceived(actions);
-        Assert.AreEqual(1.0f, ddaAgent.currentNormalizedFireRate, 0.001f);
-
-        // Apply action = -1f -> 0.8
-        var decreaseActions = new Unity.MLAgents.Actuators.ActionBuffers(
-            new float[] { -1.0f, 0.0f, 0.0f, 0.0f },
+        // action = -1.0 → (-1.0 + 1) / 2 = 0.0
+        var minActions = new Unity.MLAgents.Actuators.ActionBuffers(
+            new float[] { -1.0f, -1.0f, -1.0f, -1.0f },
             new int[] { }
         );
-        ddaAgent.OnActionReceived(decreaseActions);
-        Assert.AreEqual(0.8f, ddaAgent.currentNormalizedFireRate, 0.001f);
+        ddaAgent.OnActionReceived(minActions);
+        Assert.AreEqual(0.0f, ddaAgent.currentNormalizedFireRate,    0.001f, "FireRate should be 0.0 for action -1");
+        Assert.AreEqual(0.0f, ddaAgent.currentNormalizedBulletSpeed, 0.001f, "BulletSpeed should be 0.0 for action -1");
+        Assert.AreEqual(0.0f, ddaAgent.currentNormalizedSpreadAngle, 0.001f, "SpreadAngle should be 0.0 for action -1");
+        Assert.AreEqual(0.0f, ddaAgent.currentNormalizedEnemySpeed,  0.001f, "EnemySpeed should be 0.0 for action -1");
+
+        // action = 0.0 → (0.0 + 1) / 2 = 0.5
+        var midActions = new Unity.MLAgents.Actuators.ActionBuffers(
+            new float[] { 0.0f, 0.0f, 0.0f, 0.0f },
+            new int[] { }
+        );
+        ddaAgent.OnActionReceived(midActions);
+        Assert.AreEqual(0.5f, ddaAgent.currentNormalizedFireRate,    0.001f, "FireRate should be 0.5 for action 0");
+        Assert.AreEqual(0.5f, ddaAgent.currentNormalizedBulletSpeed, 0.001f, "BulletSpeed should be 0.5 for action 0");
+        Assert.AreEqual(0.5f, ddaAgent.currentNormalizedSpreadAngle, 0.001f, "SpreadAngle should be 0.5 for action 0");
+        Assert.AreEqual(0.5f, ddaAgent.currentNormalizedEnemySpeed,  0.001f, "EnemySpeed should be 0.5 for action 0");
+
+        // Repeated identical actions should produce the same result (no drift/accumulation)
+        ddaAgent.OnActionReceived(midActions);
+        Assert.AreEqual(0.5f, ddaAgent.currentNormalizedFireRate, 0.001f, "Repeated action 0 must not drift");
 
         Object.DestroyImmediate(go);
     }

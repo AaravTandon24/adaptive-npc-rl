@@ -8,7 +8,12 @@ public enum TrainingCondition
 {
     StaticEasy,
     StaticHard,
-    RuleBasedDDA
+    RuleBasedDDA,
+    /// <summary>
+    /// RL-based DDA using DDAAgent PPO policy. Logs to rl_dda_ppo.csv.
+    /// Set BehaviorType on DDAAgent to InferenceOnly and assign DDAAgent_Final.onnx.
+    /// </summary>
+    RlDDA
 }
 
 /// <summary>
@@ -269,16 +274,24 @@ public class RLTrainingManager : MonoBehaviour
         // Log episode statistics
         LogEpisodeStats();
 
-        // if (maxEpisodes > 0 && episodeCount >= maxEpisodes)
-        // {
-        //     Debug.Log($"RLTrainingManager: Reached max episode limit of {maxEpisodes}. Quitting application.");
-        //     #if UNITY_EDITOR
-        //     UnityEditor.EditorApplication.isPlaying = false;
-        //     #else
-        //     Application.Quit();
-        //     #endif
-        //     return;
-        // }
+        if (maxEpisodes > 0 && episodeCount >= maxEpisodes)
+        {
+            Debug.Log($"RLTrainingManager: Reached max episode limit of {maxEpisodes}. Stopping.");
+            // CSV has already been written by LogEpisodeStats() above.
+            // Notify agents so any in-flight PPO trajectory is finalised cleanly.
+            if (ddaAgent != null)
+                ddaAgent.OnGameEpisodeEnd();
+            else if (DanmakuDDAController.Instance != null)
+                DanmakuDDAController.Instance.OnEpisodeEnd(episodeCount);
+            if (enemyAgent != null)
+                enemyAgent.EndEpisode();
+            #if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+            #else
+            Application.Quit();
+            #endif
+            return;
+        }
 
         // Route to Agent 2 (DDAAgent) if present; otherwise use rule-based DDA
         if (ddaAgent != null)
@@ -542,8 +555,16 @@ public class RLTrainingManager : MonoBehaviour
     }
 
     public float GetLastEpisodePlayerHPPercentage() => capturedPlayerHPPercentage;
-    public float GetLastEpisodeEnemyHPPercentage() => capturedEnemyHPPercentage;
-    public int GetLastEpisodeOutcomeNumeric() => capturedOutcomeNumeric;
+    public float GetLastEpisodeEnemyHPPercentage()  => capturedEnemyHPPercentage;
+    public int   GetLastEpisodeOutcomeNumeric()      => capturedOutcomeNumeric;
+
+    /// <summary>
+    /// Returns the average bullet-field pressure over the last completed episode (0–1).
+    /// Sampled every frame during the episode and averaged; not a snapshot at episode end.
+    /// Used by DDAAgent as an observation so the policy can directly perceive the
+    /// bullet pressure it is meant to regulate — central to the novelty claim.
+    /// </summary>
+    public float GetLastEpisodePressure() => capturedPressure;
 
     /// <summary>
     /// Writes per-episode metrics to CSV, evaluates the fuzzy tier classifier,
@@ -578,9 +599,11 @@ public class RLTrainingManager : MonoBehaviour
         float challengeBalanceScore = 1f - Mathf.Abs(rollingWinRate - 0.5f);
 
         // Add recent survival time and compute rolling average.
-        // If the player won (enemy defeated), we treat their survival time for that episode 
-        // as the maximum episode time limit (episodeTimeLimit) since they successfully survived the round.
-        float survivalTimeForTracking = (lastEpisodeOutcome == "enemy_defeated") ? episodeTimeLimit : timeSurvived;
+        // Always use the actual timeSurvived — wins no longer inflate to episodeTimeLimit.
+        // Rationale: a 5-second win and a 55-second win are very different fights. Inflating
+        // both to 60s made every win saturate SurvivalTime_High in the fuzzy classifier,
+        // causing spurious tier-UP transitions regardless of how dominant the victory was.
+        float survivalTimeForTracking = timeSurvived;
         AddRecentSurvivalTime(survivalTimeForTracking);
         float avgSurvivalTime = GetRollingAvgSurvivalTime();
 
@@ -741,6 +764,12 @@ public class RLTrainingManager : MonoBehaviour
             case TrainingCondition.RuleBasedDDA:
                 dda.enabled = true;
                 break;
+            case TrainingCondition.RlDDA:
+                // DDA controller stays enabled so DDAAgent can push profiles via
+                // ApplyAgentProfile(). The controller's own Update() loop is already
+                // bypassed when a trainingManager is present (DanmakuDDAController.cs).
+                dda.enabled = true;
+                break;
         }
     }
 
@@ -758,10 +787,11 @@ public class RLTrainingManager : MonoBehaviour
     {
         return trainingCondition switch
         {
-            TrainingCondition.StaticEasy    => "static_easy.csv",
-            TrainingCondition.StaticHard    => "static_hard.csv",
-            TrainingCondition.RuleBasedDDA  => "rule_based_dda.csv",
-            _                               => "episode_log.csv"
+            TrainingCondition.StaticEasy   => "static_easy.csv",
+            TrainingCondition.StaticHard   => "static_hard.csv",
+            TrainingCondition.RuleBasedDDA => "rule_based_dda.csv",
+            TrainingCondition.RlDDA        => "rl_dda_ppo.csv",
+            _                              => "episode_log.csv"
         };
     }
 }

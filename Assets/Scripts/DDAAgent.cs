@@ -105,7 +105,7 @@ public class DDAAgent : Agent
         sensor.AddObservation(winRate);
 
         // 2. Rolling avg survival time, normalized by episode limit (1)
-        float avgSurvival = trainingManager != null ? trainingManager.GetRollingAvgSurvivalTime() : 30f;
+        float avgSurvival  = trainingManager != null ? trainingManager.GetRollingAvgSurvivalTime() : 30f;
         float episodeLimit = trainingManager != null ? trainingManager.episodeTimeLimit : 60f;
         sensor.AddObservation(Mathf.Clamp01(avgSurvival / episodeLimit));
 
@@ -132,6 +132,7 @@ public class DDAAgent : Agent
 
         // Total: 1+1+1+1+1+1+4 = 10
     }
+
 
     /// <summary>
     /// 4 continuous actions mapped to relative multiplier step deltas within tier bounds.

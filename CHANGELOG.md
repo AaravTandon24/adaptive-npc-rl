@@ -4,6 +4,17 @@
 
 ### Added
 
+- Added `RlDDA` to the `TrainingCondition` enum in `RLTrainingManager.cs` so the 500-episode DDA PPO evaluation run logs to `rl_dda_ppo.csv` (distinct from `rule_based_dda.csv`). Added the corresponding `case` in `ApplyTrainingCondition()` — enables `DanmakuDDAController` while letting `DDAAgent` drive profiles via `ApplyAgentProfile()`.
+- Added `GetLastEpisodePressure()` public getter on `RLTrainingManager` (returns `capturedPressure`, the per-episode average bullet-field pressure). Kept for future use as a DDAAgent observation when a retrain window is available.
+
+### Fixed
+
+- Fixed `DDAAgentTests.TestDeltaActionClamping` — renamed to `TestAbsoluteActionMapping` and rewrote assertions to match the current absolute action mapping (`(action + 1) / 2`). The old test was validating a delta-accumulation design that was removed to prevent multiplier drift; the assertions were wrong and would have failed.
+- Fixed survival time inflation on wins in `RLTrainingManager.WriteEpisodeCsv()`. Previously a player win recorded `episodeTimeLimit` (60 s) regardless of actual fight length, which caused every win to saturate `SurvivalTime_High` in `FuzzyTierClassifier` and trigger spurious tier-UP transitions. Now always uses the actual `timeSurvived` value.
+- Fixed `maxEpisodes` auto-stop in `RLTrainingManager.EndEpisode()` — the block was commented out, requiring manual Play button stop for the 500-episode eval run. It is now active: when `maxEpisodes > 0` and the limit is reached, the manager notifies both agents (so any in-flight PPO trajectory is finalised cleanly) then stops Play mode in the editor or quits the built player.
+
+### Added
+
 - Added `DifficultyTier.cs` — standalone `public enum DifficultyTier { Easy = 0, Medium = 1, Hard = 2, Expert = 3 }` so the type is available to all scripts without namespace friction.
 - Added `FuzzyTierClassifier.cs` — new `MonoBehaviour` that classifies the player into one of four difficulty tiers using fuzzy logic membership functions evaluated at episode end.
   - Inputs: `rollingWinRate` (0–1), `playerFinalHP` (0–100), `damageRatio` (0+).

@@ -163,6 +163,7 @@ MonoBehaviour:
   closenessBonusWeight: 0.5
   blowoutPenalty: 0
   blowoutHPThreshold: 0.8
+  extremeValuePenaltyWeight: 0.2
   rewardWindowSize: 10
   debugLogging: 1
   currentNormalizedFireRate: 0.5
@@ -191,7 +192,7 @@ MonoBehaviour:
     VectorActionDescriptions: []
     VectorActionSpaceType: 1
     hasUpgradedBrainParametersWithActionSpec: 1
-  m_Model: {fileID: 0}
+  m_Model: {fileID: 5022602860645237092, guid: 2a5bbde708178a74db5fd668d41783b5, type: 3}
   m_InferenceDevice: 0
   m_BehaviorType: 0
   m_BehaviorName: DDAAgent
