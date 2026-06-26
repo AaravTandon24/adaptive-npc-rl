@@ -2,10 +2,12 @@ using UnityEngine;
 
 public class FuzzyLogicTester : MonoBehaviour
 {
+#if UNITY_EDITOR
     private void Start()
     {
         RunTests();
     }
+#endif
 
     public static void RunTests()
     {

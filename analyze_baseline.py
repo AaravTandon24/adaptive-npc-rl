@@ -35,5 +35,13 @@ for name, df in [('StaticEasy', easy), ('StaticHard', hard), ('RuleBasedDDA', rb
         print(f"  [LOSS]  avg hp left: {losses['player_final_hp'].mean():.2f}  "
               f"avg ratio: {losses['damage_ratio'].mean():.2f}")
 
-print("\n\n--- Suggested FuzzyTierClassifier bounds (based on data) ---")
-print("(These are starting points — paste the output above and I'll compute exact values)")
+print("\n\n--- Rolling win rate distribution per condition ---")
+for name, df in [('StaticEasy', easy), ('StaticHard', hard), ('RuleBasedDDA', rbd)]:
+    wr = df['rolling_win_rate']
+    print(f"  {name}: p10={wr.quantile(0.10):.2f}  p25={wr.quantile(0.25):.2f}  "
+          f"p50={wr.quantile(0.50):.2f}  p75={wr.quantile(0.75):.2f}  p90={wr.quantile(0.90):.2f}")
+
+print("\n--- Challenge balance score (CBS = 1 - |WR - 0.5|) ---")
+for name, df in [('StaticEasy', easy), ('StaticHard', hard), ('RuleBasedDDA', rbd)]:
+    cbs = df['challenge_balance_score']
+    print(f"  {name}: mean={cbs.mean():.3f}  p25={cbs.quantile(0.25):.3f}  p75={cbs.quantile(0.75):.3f}")

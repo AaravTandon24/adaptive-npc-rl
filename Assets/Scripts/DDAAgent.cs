@@ -33,10 +33,6 @@ public class DDAAgent : Agent
     [Tooltip("Number of game episodes per DDAAgent meta-episode")]
     public int metaEpisodeLength = 10;
 
-    [Header("Delta Action Settings")]
-    [Tooltip("Max change applied to the normalized multipliers per action step")]
-    [Range(0.01f, 1f)]
-    public float maxStepChange = 0.2f;
 
     [Header("Reward Tuning")]
     [Tooltip("Weight for the closeness bonus (HP parity at episode end). Set to 0 to disable.")]
@@ -218,27 +214,6 @@ public class DDAAgent : Agent
             totalAddedReward += added;
         }
 
-        // Penalty for blowout outcomes
-        float blowoutPenaltyVal = 0f;
-        if (blowoutPenalty > 0f)
-        {
-            float playerHP = trainingManager != null ? trainingManager.GetPlayerHealthPercentage() : 0.5f;
-            float enemyHP = trainingManager != null ? trainingManager.GetEnemyHealthPercentage() : 0.5f;
-            string outcome = trainingManager != null ? trainingManager.lastEpisodeOutcome : "unknown";
-            if (outcome == "player_defeated" && enemyHP > blowoutHPThreshold)
-            {
-                blowoutPenaltyVal = -blowoutPenalty;
-                AddReward(blowoutPenaltyVal);
-                totalAddedReward += blowoutPenaltyVal;
-            }
-            if (outcome == "enemy_defeated" && playerHP > blowoutHPThreshold)
-            {
-                blowoutPenaltyVal = -blowoutPenalty;
-                AddReward(blowoutPenaltyVal);
-                totalAddedReward += blowoutPenaltyVal;
-            }
-        }
-
         // Penalty for extreme values (cheese prevention)
         float extremePenaltyVal = 0f;
         if (extremeValuePenaltyWeight > 0f)
@@ -260,7 +235,7 @@ public class DDAAgent : Agent
             int episodeNum = trainingManager != null ? trainingManager.episodeCount : 0;
             Debug.Log($"[DDAAgent Reward] Game Episode {episodeNum} | Outcome: {outcomeStr} | WinRate ({rewardWindowSize}-ep window): {winRate:P0} | " +
                       $"Balance Reward: {balanceReward:F3} | Closeness Bonus: {closenessBonusVal * closenessBonusWeight:F3} | " +
-                      $"Blowout Penalty: {blowoutPenaltyVal:F3} | Extreme Penalty: {extremePenaltyVal:F3} | Step Reward: {totalAddedReward:F3} | Total Cumulative Reward: {GetCumulativeReward():F3}");
+                      $"Extreme Penalty: {extremePenaltyVal:F3} | Step Reward: {totalAddedReward:F3} | Total Cumulative Reward: {GetCumulativeReward():F3}");
         }
 
         // --- Meta-episode boundary ---
@@ -285,12 +260,5 @@ public class DDAAgent : Agent
         continuous[1] = 0f; // mid-range bulletSpeed
         continuous[2] = 0f; // mid-range spreadAngle
         continuous[3] = 0f; // mid-range enemySpeed
-    }
-
-    private float NormalizeWithinBounds(float value, float min, float max)
-    {
-        float range = max - min;
-        if (range < 0.001f) return 0.5f;
-        return Mathf.Clamp01((value - min) / range);
     }
 }

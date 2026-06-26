@@ -133,15 +133,6 @@ public class FuzzyTierClassifier : MonoBehaviour
         return 1f - (winRate - 0.4f) / 0.3f;
     }
 
-    /// <summary>
-    /// winRate_Medium: peaks at 0.55, zero below 0.4 and above 0.75.
-    /// </summary>
-    public float WinRate_Medium(float winRate)
-    {
-        if (winRate <= 0.4f || winRate >= 0.75f) return 0f;
-        if (winRate <= 0.55f) return (winRate - 0.4f) / 0.15f;
-        return 1f - (winRate - 0.55f) / 0.2f;
-    }
 
     /// <summary>
     /// winRate_High: zero at or below 0.7, full membership at or above 0.9.
@@ -169,15 +160,6 @@ public class FuzzyTierClassifier : MonoBehaviour
         return 1f - (survivalTime - 8f) / 7f;
     }
 
-    /// <summary>
-    /// survivalTime_Medium: peaks at 20s, zero below 10s and above 35s.
-    /// </summary>
-    public float SurvivalTime_Medium(float survivalTime)
-    {
-        if (survivalTime <= 10f || survivalTime >= 35f) return 0f;
-        if (survivalTime <= 20f) return (survivalTime - 10f) / 10f;
-        return 1f - (survivalTime - 20f) / 15f;
-    }
 
     /// <summary>
     /// survivalTime_High: zero below 25s, full membership above 40s.
