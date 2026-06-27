@@ -45,7 +45,17 @@ public class DDAAgent : Agent
     public float blowoutHPThreshold = 0.8f;
 
     [Tooltip("Penalty applied when continuous outputs are at extremes (0 or 1) to prevent cheese strategies.")]
-    public float extremeValuePenaltyWeight = 0.2f;
+    public float extremeValuePenaltyWeight = 0.08f;
+
+    [Tooltip("How strongly bullet count tracks the average of the 3 bullet-behaviour multipliers. " +
+             "0 = always 1 bullet, 1 = full 1-2x range tracking. Default 0.5 = gentle scaling.")]
+    [Range(0f, 1f)]
+    public float bulletCountResponseScale = 0.5f;
+
+    [Tooltip("How much enemy speed moves toward the agent's target per episode (0=frozen, 1=instant). " +
+             "Lower values create a smooth lag that prevents jarring speed snaps.")]
+    [Range(0.05f, 1f)]
+    public float enemySpeedSmoothRate = 0.25f;
 
     [Tooltip("The window size for computing the win rate used for the step reward")]
     public int rewardWindowSize = 10;
@@ -59,6 +69,10 @@ public class DDAAgent : Agent
     [Range(0f, 1f)] public float currentNormalizedBulletSpeed = 0.5f;
     [Range(0f, 1f)] public float currentNormalizedSpreadAngle = 0.5f;
     [Range(0f, 1f)] public float currentNormalizedEnemySpeed = 0.5f;
+
+    // Smoothed enemy speed — lerps toward currentNormalizedEnemySpeed each episode
+    // to prevent jarring speed snaps visible to the player.
+    [Range(0f, 1f)] public float smoothedEnemySpeed = 0.5f;
 
     public float currentFireRate => Mathf.Lerp(currentBounds.fireRateMin, currentBounds.fireRateMax, currentNormalizedFireRate);
     public float currentBulletSpeed => Mathf.Lerp(currentBounds.bulletSpeedMin, currentBounds.bulletSpeedMax, currentNormalizedBulletSpeed);
@@ -152,19 +166,28 @@ public class DDAAgent : Agent
         currentNormalizedSpreadAngle = (a2 + 1f) / 2f;
         currentNormalizedEnemySpeed  = (a3 + 1f) / 2f;
 
+        // Smooth enemy speed toward the agent's target — prevents jarring per-episode snaps.
+        smoothedEnemySpeed = Mathf.Lerp(smoothedEnemySpeed, currentNormalizedEnemySpeed, enemySpeedSmoothRate);
+
+        // Bullet count is derived from the average of the 3 bullet-behaviour multipliers,
+        // scaled by bulletCountResponseScale so it rises gently without huge jumps.
+        float avgBulletPressure = (currentNormalizedFireRate + currentNormalizedBulletSpeed + currentNormalizedSpreadAngle) / 3f;
+        float bulletCountMultiplierDerived = Mathf.Lerp(1f, 2f, avgBulletPressure * bulletCountResponseScale);
+
         // Build a DifficultyProfile from the agent's outputs
         DifficultyProfile profile = DifficultyProfile.Default;
         profile.fireRateMultiplier    = currentFireRate;
         profile.bulletSpeedMultiplier = currentBulletSpeed;
         profile.spreadAngleMultiplier = currentSpreadAngle;
-        profile.enemySpeedMultiplier  = currentEnemySpeed;
+        // Use the smoothed speed so the player perceives a gradual change.
+        profile.enemySpeedMultiplier  = Mathf.Lerp(currentBounds.enemySpeedMin, currentBounds.enemySpeedMax, smoothedEnemySpeed);
 
-        // Keep other multipliers at the tier midpoint (derived from FromPressure at mid-difficulty)
+        // Keep spawn/powerup multipliers at the tier midpoint.
         float tierMidDifficulty = ((int)currentTier * 0.25f) + 0.125f;
         profile.spawnIntervalMultiplier = Mathf.Lerp(1.55f, 0.65f, tierMidDifficulty);
         profile.powerupSpawnMultiplier  = Mathf.Lerp(0.75f, 1.55f, 1f - tierMidDifficulty);
-        float bulletCountDifficulty = Mathf.InverseLerp(0.5f, 1f, tierMidDifficulty);
-        profile.bulletCountMultiplier   = Mathf.Lerp(1f, 2f, bulletCountDifficulty);
+        // Bullet count derived from bullet-behaviour average — not a direct agent output.
+        profile.bulletCountMultiplier   = bulletCountMultiplierDerived;
 
         if (DanmakuDDAController.Instance != null)
         {
@@ -175,10 +198,11 @@ public class DDAAgent : Agent
         if (debugLogging)
         {
             int episodeNum = trainingManager != null ? trainingManager.episodeCount : 0;
-            Debug.Log($"[DDAAgent Step] Game Episode {episodeNum} | Action: deltas=[{a0:F2}, {a1:F2}, {a2:F2}, {a3:F2}] | " +
-                      $"Applied Multipliers (Tier: {currentTier}): FireRate={profile.fireRateMultiplier:F2}, " +
+            Debug.Log($"[DDAAgent Step] Game Episode {episodeNum} | Action: [{a0:F2}, {a1:F2}, {a2:F2}, {a3:F2}] | " +
+                      $"Tier: {currentTier} | FireRate={profile.fireRateMultiplier:F2}, " +
                       $"BulletSpeed={profile.bulletSpeedMultiplier:F2}, SpreadAngle={profile.spreadAngleMultiplier:F2}, " +
-                      $"EnemySpeed={profile.enemySpeedMultiplier:F2}");
+                      $"EnemySpeed(smoothed)={profile.enemySpeedMultiplier:F2} (target={currentEnemySpeed:F2}), " +
+                      $"BulletCount={profile.bulletCountMultiplier:F2}");
         }
     }
 

@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+## DDA Agent — Tuning Round 2 (Faster Response, Smooth Speed, Derived Bullet Count)
+
+### Changed
+- `extremeValuePenaltyWeight`: `0.2` → `0.08` — agent is less penalised for moving sliders away from `0.5`, allowing faster and more decisive difficulty changes.
+- `bulletCountMultiplier` is no longer computed from `tierMidDifficulty`. It is now derived as `Lerp(1, 2, avgBulletPressure × bulletCountResponseScale)` where `avgBulletPressure` is the mean of the 3 bullet-behaviour normalized outputs (`fireRate`, `bulletSpeed`, `spreadAngle`). Bullet count now rises and falls proportionally to actual bullet behaviour without causing independent jarring jumps.
+- Enemy speed (`enemySpeedMultiplier`) is now applied through a per-episode exponential smooth (`smoothedEnemySpeed`). The agent's raw target is stored as `currentNormalizedEnemySpeed` but only `enemySpeedSmoothRate` (default `0.25`) of the remaining gap is closed each episode, giving ~4 episodes of lag before a new target is fully reached.
+
+### Added
+- `bulletCountResponseScale` Inspector field (`[Range(0,1)]`, default `0.5`) — controls how strongly bullet count tracks the bullet-behaviour average.
+- `enemySpeedSmoothRate` Inspector field (`[Range(0.05,1)]`, default `0.25`) — controls per-episode smoothing speed for enemy speed changes.
+- `smoothedEnemySpeed` runtime field — visible in Inspector for debugging; shows the currently applied (lagged) enemy speed value vs. the agent's raw target.
+- Debug log now shows `EnemySpeed(smoothed)=X (target=Y)` and `BulletCount=Z` every step.
+
+## PPO v8 — Active Movement & Evasion (Batch A)
+
+### Added
+- Added `logThreatDiagnostics` toggle to `EnemyAgent.cs` (Inspector checkbox under **Threat Diagnostics** header). When enabled, prints each tracked threat's distance and TTI every `FixedUpdate`, and emits a `PERCEPTION GAP` warning for any bullet that is closer than the nearest tracked threat. Used to distinguish perception problems from reward-weighting problems before retuning. **Disable before retraining.**
+
+### Changed
+- `lateralMovementReward`: `0.005` → `0.02` (4×) — orbiting the player is now meaningfully profitable, breaking the centre-camping equilibrium.
+- `idlePenalty`: `0.003` → `0.015` (5×) — standing still is now significantly punished, forcing the agent to stay in continuous motion.
+- `dodgeReward`: `0.01` → `0.04` (4×) — moving away from an incoming bullet is now worth acting on, encouraging active evasion over passive tanking.
+
+> **Note:** Batch B (`nearMissReward`, `dangerPenalty`, `maxDangerPenaltyPerStep`, `directionChangePenalty`, `beta`) is held back until post-v8 footage confirms Batch A alone was insufficient.
+
+
 ### Added
 
 - Added `RlDDA` to the `TrainingCondition` enum in `RLTrainingManager.cs` so the 500-episode DDA PPO evaluation run logs to `rl_dda_ppo.csv` (distinct from `rule_based_dda.csv`). Added the corresponding `case` in `ApplyTrainingCondition()` — enables `DanmakuDDAController` while letting `DDAAgent` drive profiles via `ApplyAgentProfile()`.

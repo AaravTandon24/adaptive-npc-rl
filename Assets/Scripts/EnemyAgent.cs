@@ -58,6 +58,12 @@ public class EnemyAgent : Agent, IDifficultyTunable
     [Tooltip("Maximum total danger penalty applied per step")]
     public float maxDangerPenaltyPerStep = 0.03f;
 
+    [Header("Threat Diagnostics")]
+    [Tooltip("Enable to print each tracked threat's distance and TTI every FixedUpdate. " +
+             "Use this to check if dangerous bullets were visible to the agent before impact. " +
+             "Disable before retraining.")]
+    public bool logThreatDiagnostics = false;
+
     [Header("Health (fallback if no health component found)")]
     public float maxHealth = 10f;
     public float currentHealth = 10f;
@@ -82,11 +88,11 @@ public class EnemyAgent : Agent, IDifficultyTunable
     [Tooltip("Penalty for being too far from the player")]
     public float tooFarPenalty = 0.005f;
     [Tooltip("Reward for moving laterally around the player while in range")]
-    public float lateralMovementReward = 0.005f;
+    public float lateralMovementReward = 0.02f;
     [Tooltip("Penalty for producing almost no movement")]
-    public float idlePenalty = 0.003f;
+    public float idlePenalty = 0.015f;
     [Tooltip("Reward for moving away from an incoming player bullet")]
-    public float dodgeReward = 0.01f;
+    public float dodgeReward = 0.04f;
     [Tooltip("Reward given when a bullet passes very close to the agent without hitting")]
     public float nearMissReward = 0.05f;
     [Tooltip("Radius within which a bullet counts as a near miss/graze")]
@@ -250,6 +256,12 @@ public class EnemyAgent : Agent, IDifficultyTunable
             rb.velocity = Vector2.zero;
             rb.angularVelocity = 0f;
         }
+    }
+
+    void FixedUpdate()
+    {
+        if (logThreatDiagnostics)
+            LogThreatDiagnostics();
     }
 
     // Observations required by the policy
@@ -453,6 +465,56 @@ public class EnemyAgent : Agent, IDifficultyTunable
             }
         }
         return nearest;
+    }
+
+    /// <summary>
+    /// Prints one line per tracked threat to the Unity Console so you can verify
+    /// whether fast-approaching bullets were already visible to the agent.
+    /// Toggle via the logThreatDiagnostics Inspector checkbox.
+    /// </summary>
+    private void LogThreatDiagnostics()
+    {
+        // Re-use the bullet cache that OnActionReceived already filled this frame.
+        // If called before the first OnActionReceived, pull a fresh list.
+        GameObject[] bullets = _cachedPlayerBullets.Length > 0
+            ? _cachedPlayerBullets
+            : GameObject.FindGameObjectsWithTag("Player Bullet");
+
+        Vector2 enemyPos = transform.position;
+        var threats = GetTopThreats(enemyPos, threatCount);
+
+        if (threats.Count == 0)
+        {
+            Debug.Log("[ThreatDiag] No threats in top-list this frame.");
+            return;
+        }
+
+        // Also compute raw distances for every bullet so we can cross-check
+        // which ones are close but NOT in the tracked list (perception gap).
+        for (int i = 0; i < threats.Count; i++)
+        {
+            float dist   = threats[i].relativePosition.magnitude;
+            float ttiSec = threats[i].normalizedTimeToImpact * maxRelevantTime;
+            Debug.Log($"[ThreatDiag] Threat[{i}] dist={dist:F2}u  TTI={ttiSec:F3}s  " +
+                      $"normTTI={threats[i].normalizedTimeToImpact:F3}  " +
+                      $"velDir={threats[i].velocityDirection}");
+        }
+
+        // Log any bullets that are CLOSER than the nearest tracked threat
+        // but did NOT make it into the top-3 list (signals a perception gap).
+        float nearestTrackedDist = threats[0].relativePosition.magnitude;
+        foreach (GameObject b in bullets)
+        {
+            if (b == null) continue;
+            float d = Vector2.Distance(enemyPos, b.transform.position);
+            if (d < nearestTrackedDist)
+            {
+                Debug.LogWarning($"[ThreatDiag] PERCEPTION GAP — bullet at dist={d:F2}u is closer " +
+                                 $"than nearest tracked threat ({nearestTrackedDist:F2}u) " +
+                                 $"but NOT in the top-{threatCount} list. " +
+                                 $"Check bulletObservationRadius or moving-toward filter.");
+            }
+        }
     }
 
     /// <summary>
