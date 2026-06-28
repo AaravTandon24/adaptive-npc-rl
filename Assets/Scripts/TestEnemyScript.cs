@@ -57,7 +57,6 @@ public class TestEnemyScript : MonoBehaviour, IDifficultyTunable
         baseMovementSpeed = movementSpeed;
         baseBulletSpeed = bulletSpeed;
         baseSpreadAngle = spreadAngle;
-        baseBulletsPerBurst = 3;
         currentBulletsPerBurst = baseBulletsPerBurst;
     }
 

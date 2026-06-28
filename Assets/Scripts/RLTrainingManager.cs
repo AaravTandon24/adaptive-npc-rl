@@ -116,6 +116,7 @@ public class RLTrainingManager : MonoBehaviour
     // Rolling outcomes for last N episodes for win rate
     private readonly Queue<int> recentOutcomes = new Queue<int>();
     private readonly Queue<float> recentSurvivalTimes = new Queue<float>();
+    private readonly Queue<float> recentPlayerFinalHPs = new Queue<float>(); // normalized 0-1
     private const int RollingWindowSize = 10;
 
     void Start()
@@ -279,10 +280,10 @@ public class RLTrainingManager : MonoBehaviour
             Debug.Log($"RLTrainingManager: Reached max episode limit of {maxEpisodes}. Stopping.");
             // CSV has already been written by LogEpisodeStats() above.
             // Notify agents so any in-flight PPO trajectory is finalised cleanly.
-            if (ddaAgent != null)
+            if (trainingCondition == TrainingCondition.RlDDA && ddaAgent != null)
                 ddaAgent.OnGameEpisodeEnd();
             else if (DanmakuDDAController.Instance != null)
-                DanmakuDDAController.Instance.OnEpisodeEnd(episodeCount);
+                DanmakuDDAController.Instance.OnEpisodeEnd(episodeCount, capturedPressure);
             if (enemyAgent != null)
                 enemyAgent.EndEpisode();
             #if UNITY_EDITOR
@@ -293,14 +294,16 @@ public class RLTrainingManager : MonoBehaviour
             return;
         }
 
-        // Route to Agent 2 (DDAAgent) if present; otherwise use rule-based DDA
-        if (ddaAgent != null)
+        // Route based on training condition
+        if (trainingCondition == TrainingCondition.RlDDA && ddaAgent != null)
         {
             ddaAgent.OnGameEpisodeEnd();
         }
         else if (DanmakuDDAController.Instance != null)
         {
-            DanmakuDDAController.Instance.OnEpisodeEnd(episodeCount);
+            // Pass the episode-averaged pressure (sampled every frame) so the DDA
+            // controller uses a representative signal rather than a noisy end-of-episode snapshot.
+            DanmakuDDAController.Instance.OnEpisodeEnd(episodeCount, capturedPressure);
         }
 
         if (enemyAgent != null)
@@ -461,6 +464,11 @@ public class RLTrainingManager : MonoBehaviour
 
         DifficultyTier tier = WriteEpisodeCsv(playerFinalHP, enemyFinalHP);
         Debug.Log($"[FuzzyTier] Episode {episodeCount}: tier = {tier} ({(int)tier})");
+
+        // Push the new tier to the DDA controller so it clamps currentDifficulty
+        // into the correct band. This is what makes the tier actually affect gameplay.
+        if (DanmakuDDAController.Instance != null)
+            DanmakuDDAController.Instance.SetTier(tier);
     }
 
     private int MapOutcomeToInt(string outcome)
@@ -522,6 +530,22 @@ public class RLTrainingManager : MonoBehaviour
         foreach (float v in recentSurvivalTimes) sum += v;
         return sum / recentSurvivalTimes.Count;
     }
+
+    private void AddRecentPlayerFinalHP(float hpNorm)
+    {
+        recentPlayerFinalHPs.Enqueue(hpNorm);
+        while (recentPlayerFinalHPs.Count > RollingWindowSize)
+            recentPlayerFinalHPs.Dequeue();
+    }
+
+    public float GetRollingAvgPlayerFinalHPNorm()
+    {
+        if (recentPlayerFinalHPs.Count == 0) return 0f;
+        float sum = 0f;
+        foreach (float v in recentPlayerFinalHPs) sum += v;
+        return sum / recentPlayerFinalHPs.Count;
+    }
+
 
     /// <summary>
     /// Returns the last episode outcome as an integer (0=player died, 1=enemy died, 2=timeout).
@@ -618,11 +642,18 @@ public class RLTrainingManager : MonoBehaviour
         float spreadAngleValue = start_spreadAngle;
         float enemyMoveSpeedValue = start_enemyMoveSpeed;
 
+        // Track rolling player final HP (normalized). playerFinalHP is on a 0-maxHealth scale;
+        // normalize against maxHealth from the health script, defaulting to 5 if unavailable.
+        float maxHP = playerHealthScript != null ? playerHealthScript.maxHealth : 5f;
+        float playerFinalHPNorm = maxHP > 0f ? Mathf.Clamp01(playerFinalHP / maxHP) : 0f;
+        AddRecentPlayerFinalHP(playerFinalHPNorm);
+        float avgPlayerFinalHPNorm = GetRollingAvgPlayerFinalHPNorm();
+
         // ---- Fuzzy tier evaluation ----
         DifficultyTier currentTier = DifficultyTier.Medium; // default if classifier not wired
         if (_tierClassifier != null)
         {
-            currentTier = _tierClassifier.Evaluate(rollingWinRate, avgSurvivalTime, episodeCount);
+            currentTier = _tierClassifier.Evaluate(rollingWinRate, avgSurvivalTime, avgPlayerFinalHPNorm, episodeCount);
         }
         else
         {

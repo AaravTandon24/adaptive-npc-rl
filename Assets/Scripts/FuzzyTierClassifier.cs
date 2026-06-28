@@ -50,10 +50,11 @@ public class FuzzyTierClassifier : MonoBehaviour
     /// Must be called once per episode end from RLTrainingManager (or equivalent).
     /// </summary>
     /// <param name="rollingWinRate">Win rate over last 10 episodes (0–1).</param>
-    /// <param name="avgSurvivalTime">Rolling average of survival time over last 10 episodes (0–60s).</param>
+    /// <param name="avgSurvivalTime">Rolling average of survival time over last 10 episodes (0–60s). Used for logging only.</param>
+    /// <param name="avgPlayerFinalHPNorm">Rolling average of player final HP at episode end, normalized 0–1.</param>
     /// <param name="episodeCount">Total episodes completed so far (1-indexed at end of episode).</param>
     /// <returns>The current <see cref="DifficultyTier"/> after evaluation.</returns>
-    public DifficultyTier Evaluate(float rollingWinRate, float avgSurvivalTime, int episodeCount)
+    public DifficultyTier Evaluate(float rollingWinRate, float avgSurvivalTime, float avgPlayerFinalHPNorm, int episodeCount)
     {
         // ---- Guard: minimum warm-up period ----
         if (episodeCount < minEpisodesBeforeFirstChange)
@@ -73,26 +74,21 @@ public class FuzzyTierClassifier : MonoBehaviour
         }
 
         // ---- Compute fuzzy memberships ----
-        float wrHigh = WinRate_High(rollingWinRate);
-        float stHigh = SurvivalTime_High(avgSurvivalTime);
+        float wrHigh  = WinRate_High(rollingWinRate);
+        float wrLow   = WinRate_Low(rollingWinRate);
 
-        float wrLow  = WinRate_Low(rollingWinRate);
-        float stLow  = SurvivalTime_Low(avgSurvivalTime);
+        // Tier UP: win rate high AND player finishes episodes with high HP.
+        // Using player final HP (not survival time) so fast, clean kills correctly
+        // trigger promotion. A player who kills in 10s without taking damage has
+        // avgPlayerFinalHPNorm ≈ 1.0, earning full membership immediately.
+        float hpHigh  = PlayerHP_High(avgPlayerFinalHPNorm);
+        float tierUpStrength   = Mathf.Min(wrHigh, hpHigh);
 
-        // ---- Fuzzy rule: Tier UP ----
-        // Tier UP when: winRate_High AND survivalTime_High (player wins AND survives long).
-        // min(winRate_High, survivalTime_High) > 0.6
-        float tierUpStrength = Mathf.Min(wrHigh, stHigh);
-
-        // ---- Fuzzy rule: Tier DOWN ----
-        // Tier DOWN when: winRate_Low is high.
-        // Survival time is intentionally excluded here: when wins are tracked as 60 s,
-        // the rolling average is always >> 15 s even under heavy losses, so an AND-rule
-        // with stLow would never fire. Win rate alone is a sufficient signal for demotion.
+        // Tier DOWN: win rate low enough (survival time excluded — see comment in WinRate_Low).
         float tierDownStrength = wrLow;
 
         Debug.Log($"[FuzzyTierClassifier] Episode {episodeCount} | " +
-                  $"WR={rollingWinRate:F2} SurvivalTime={avgSurvivalTime:F1} | " +
+                  $"WR={rollingWinRate:F2} AvgHP={avgPlayerFinalHPNorm:F2} SurvTime={avgSurvivalTime:F1}s | " +
                   $"UpStrength={tierUpStrength:F3} DownStrength={tierDownStrength:F3} | " +
                   $"CurrentTier={CurrentTier}");
 
@@ -163,11 +159,28 @@ public class FuzzyTierClassifier : MonoBehaviour
 
     /// <summary>
     /// survivalTime_High: zero below 25s, full membership above 40s.
+    /// Kept for logging context but no longer used in tier transition rules.
     /// </summary>
     public float SurvivalTime_High(float survivalTime)
     {
         if (survivalTime <= 25f) return 0f;
         if (survivalTime >= 40f) return 1f;
         return (survivalTime - 25f) / 15f;
+    }
+
+    // -------------------------------------------------------------------------
+    // Fuzzy membership functions — Player Final HP
+    // -------------------------------------------------------------------------
+
+    /// <summary>
+    /// playerHP_High: full membership at or above 0.8 (took little/no damage),
+    /// zero at or below 0.4 (took heavy damage).
+    /// A player who kills in 10s without being hit ends at HP ≈ 1.0 → full membership.
+    /// </summary>
+    public float PlayerHP_High(float hpNorm)
+    {
+        if (hpNorm >= 0.8f) return 1f;
+        if (hpNorm <= 0.4f) return 0f;
+        return (hpNorm - 0.4f) / 0.4f;
     }
 }

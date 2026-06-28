@@ -26,6 +26,10 @@ public class DanmakuDDAController : MonoBehaviour
     private RLTrainingManager trainingManager;
     private int lastChangedEpisode = -100;
 
+    // Current difficulty tier — driven by FuzzyTierClassifier via SetTier().
+    private DifficultyTier _currentTier = DifficultyTier.Medium;
+    public DifficultyTier CurrentTier => _currentTier;
+
     // BUG-04 fix: maintain an explicit list of registered tunables so
     // ApplyProfileToScene() never needs FindObjectsOfType at runtime.
     private readonly System.Collections.Generic.List<IDifficultyTunable> _tunables =
@@ -164,7 +168,12 @@ public class DanmakuDDAController : MonoBehaviour
     }
 
 
-    public void OnEpisodeEnd(int currentEpisodeCount)
+    /// <summary>
+    /// Called by RLTrainingManager at episode end.
+    /// avgEpisodePressure should be the episode-averaged pressure sampled every frame
+    /// (not a point-in-time snapshot at episode end, which is unreliable).
+    /// </summary>
+    public void OnEpisodeEnd(int currentEpisodeCount, float avgEpisodePressure = -1f)
     {
         // No difficulty changes allowed for the first 2 episodes
         if (currentEpisodeCount < 2)
@@ -174,11 +183,15 @@ public class DanmakuDDAController : MonoBehaviour
         if (lastChangedEpisode >= 0 && currentEpisodeCount - lastChangedEpisode < 3)
             return;
 
-        currentPressure = pressureAnalyzer != null ? pressureAnalyzer.GetPressureScore() : 0f;
+        // Prefer the episode-averaged pressure passed in from RLTrainingManager.
+        // Fall back to a live snapshot only if no value was supplied.
+        currentPressure = avgEpisodePressure >= 0f
+            ? avgEpisodePressure
+            : (pressureAnalyzer != null ? pressureAnalyzer.GetPressureScore() : 0f);
+
         PlayerDifficultyState playerState = telemetry != null ? telemetry.GetPlayerState() : default;
 
-        // BUG-03 fix: only reduce difficulty for low HP when the player LOST.
-        // If the player won at low HP, the difficulty was already appropriate.
+        // Only reduce difficulty for low HP when the player LOST.
         bool playerWon = trainingManager != null
             && trainingManager.lastEpisodeOutcome == "enemy_defeated";
 
@@ -200,15 +213,52 @@ public class DanmakuDDAController : MonoBehaviour
         if (playerState.nearMissesPerSecond > 1.5f)
             desiredDifficulty -= 0.05f * 0.5f;
 
-        // Clamp the total change to 0.05f max per episode
-        float delta = Mathf.Clamp(desiredDifficulty - currentDifficulty, -0.05f, 0.05f);
+        // Clamp to the current tier's difficulty band so rule-based DDA
+        // never escapes the range that the FuzzyTierClassifier assigned.
+        float bandLow  = (int)_currentTier * 0.25f;
+        float bandHigh = bandLow + 0.25f;
 
-        if (Mathf.Abs(delta) > 0.0001f)
+        // Clamp the total change to 0.05f max per episode, then clamp to band
+        float delta = Mathf.Clamp(desiredDifficulty - currentDifficulty, -0.05f, 0.05f);
+        float newDifficulty = Mathf.Clamp(currentDifficulty + delta, bandLow, bandHigh);
+
+        if (Mathf.Abs(newDifficulty - currentDifficulty) > 0.0001f)
         {
-            currentDifficulty = Mathf.Clamp01(currentDifficulty + delta);
+            currentDifficulty = newDifficulty;
             lastChangedEpisode = currentEpisodeCount;
             currentProfile = DifficultyProfile.FromPressure(currentDifficulty, maxActiveEnemyBullets);
             ApplyProfileToScene();
+
+            if (debugLogging)
+                Debug.Log($"[DanmakuDDA] Episode {currentEpisodeCount}: difficulty {currentDifficulty:F2} " +
+                          $"(tier={_currentTier}, band=[{bandLow:F2},{bandHigh:F2}], pressure={currentPressure:F2})");
         }
+    }
+
+    /// <summary>
+    /// Called by RLTrainingManager after FuzzyTierClassifier evaluates each episode.
+    /// Clamps currentDifficulty into the new tier's band immediately so gameplay
+    /// reflects the escalation without waiting for the next DDA nudge.
+    /// </summary>
+    public void SetTier(DifficultyTier newTier)
+    {
+        if (newTier == _currentTier)
+            return;
+
+        DifficultyTier previous = _currentTier;
+        _currentTier = newTier;
+
+        // Set difficulty to the midpoint of the new tier's band
+        // E.g., Easy=[0,0.25] -> 0.125f; Medium=[0.25,0.50] -> 0.375f; Hard=[0.50,0.75] -> 0.625f; Expert=[0.75,1.0] -> 0.875f
+        float bandLow  = (int)newTier * 0.25f;
+        float newDifficulty = bandLow + 0.125f;
+
+        Debug.Log($"[DanmakuDDA] Tier {previous}→{newTier}: " +
+                  $"difficulty set to midpoint {newDifficulty:F2} " +
+                  $"(band=[{bandLow:F2},{(bandLow + 0.25f):F2}])");
+
+        currentDifficulty = newDifficulty;
+        currentProfile = DifficultyProfile.FromPressure(currentDifficulty, maxActiveEnemyBullets);
+        ApplyProfileToScene();
     }
 }

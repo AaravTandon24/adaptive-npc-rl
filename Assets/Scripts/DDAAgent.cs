@@ -169,10 +169,11 @@ public class DDAAgent : Agent
         // Smooth enemy speed toward the agent's target — prevents jarring per-episode snaps.
         smoothedEnemySpeed = Mathf.Lerp(smoothedEnemySpeed, currentNormalizedEnemySpeed, enemySpeedSmoothRate);
 
-        // Bullet count is derived from the average of the 3 bullet-behaviour multipliers,
-        // scaled by bulletCountResponseScale so it rises gently without huge jumps.
+        // Bullet count is derived from the average of the 3 bullet-behaviour multipliers
+        // and scaled by the current tier difficulty so it increases across tiers.
         float avgBulletPressure = (currentNormalizedFireRate + currentNormalizedBulletSpeed + currentNormalizedSpreadAngle) / 3f;
-        float bulletCountMultiplierDerived = Mathf.Lerp(1f, 2f, avgBulletPressure * bulletCountResponseScale);
+        float overallDifficulty = ((int)currentTier * 0.25f) + (avgBulletPressure * 0.25f);
+        float bulletCountMultiplierDerived = Mathf.Lerp(1f, 2f, overallDifficulty * bulletCountResponseScale);
 
         // Build a DifficultyProfile from the agent's outputs
         DifficultyProfile profile = DifficultyProfile.Default;
