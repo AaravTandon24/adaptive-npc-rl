@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## DDA Agent & Training Pipeline — Stability, Speedup, and Compatibility Fixes
+
+### Added
+- Added programmatic timescale acceleration (`trainingTimeScale` default `10f`) to `RLTrainingManager.cs` when the ML-Agents python client is active. Helps speed up in-editor training by 10x without manually setting variables.
+- Added a `protobuf==3.20.3` downgrade in the virtual environment to resolve the `TypeError: Descriptors cannot be created directly` startup exception introduced by `onnxscript`'s version conflicts.
+
+### Changed
+- Changed the `smoothedEnemySpeed` calculation in `DDAAgent.cs` to lerp in **absolute multiplier space** instead of normalized space. This completely eliminates jarring speed snaps when the active tier shifts and bounds change instantly.
+- Changed `EnemyAgent.cs` to only randomize the enemy speed scalar during active `EnemyAgent` movement policy training. When the movement agent is in inference mode (e.g. during DDA training or evaluation), the random reset is skipped.
+- Updated default `bulletCountResponseScale` in `DDAAgent.cs` from `0.5` to `1.0` to allow the bullet count to scale dynamically across the full range (e.g. 3 to 6 bullets) instead of locking in a narrow band.
+
+### Fixed
+- Fixed `PlayerLivesScript.cs` timescale reset. It now only resets `Time.timeScale` to `1f` if the game is **not** running in `trainingMode`. This allows the simulator's speedup to persist correctly across episode resets.
+- Resolved a Sentis model loading crash (`NullReferenceException` in `SentisModelParamLoader`) by down-converting the final exported DDA model `DDAAgent-50110.onnx` to Opset 15 and embedding the weights directly using `convert_model.py`, outputting to `DDAAgent_v3.onnx`.
+- Removed orphaned `maxStepChange` field/header and the unused blowout penalty logic inside `DDAAgent.cs`.
+- Removed unused `WinRate_Medium` and `SurvivalTime_Medium` membership functions inside `FuzzyTierClassifier.cs`.
+- Wrapped `FuzzyLogicTester.cs` Start() hook inside `#if UNITY_EDITOR` to avoid Play-mode connection overhead.
+- Fixed `analyze_baseline.py` stub output, replacing it with actual percentile win-rate and challenge balance score (CBS) distributions computed from log datasets.
+
 ## DDA Agent — Tuning Round 2 (Faster Response, Smooth Speed, Derived Bullet Count)
 
 ### Changed
