@@ -39,6 +39,10 @@ public class RLTrainingManager : MonoBehaviour
     [Tooltip("Maximum number of episodes to run (0 for infinite)")]
     public int maxEpisodes = 0;
 
+    [Header("Training Speedup")]
+    [Tooltip("Timescale multiplier used during active training (when ML-Agents communicator is on)")]
+    public float trainingTimeScale = 10f;
+
     [Header("Episode Tracking (Read-Only)")]
     [Tooltip("Current time elapsed in the episode")]
     public float currentEpisodeTime = 0f;
@@ -123,6 +127,13 @@ public class RLTrainingManager : MonoBehaviour
     {
         csvFileName = GetLogFileName();
         InitializeEpisode();
+
+        // Boost timescale for faster training inside the Editor when communicator is connected
+        if (Unity.MLAgents.Academy.Instance.IsCommunicatorOn)
+        {
+            Time.timeScale = trainingTimeScale;
+            Debug.Log($"[RLTrainingManager] ML-Agents Communicator detected. Boosting timeScale to {Time.timeScale}x for training.");
+        }
     }
 
     void Update()

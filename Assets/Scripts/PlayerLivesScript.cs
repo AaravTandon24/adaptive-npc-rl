@@ -131,7 +131,10 @@ public class PlayerLivesScript : MonoBehaviour
     {
         isDead = false;
         currentHealth = maxHealth;
-        Time.timeScale = 1f;
+        if (!trainingMode)
+        {
+            Time.timeScale = 1f;
+        }
 
         if (!gameObject.activeInHierarchy)
             gameObject.SetActive(true);

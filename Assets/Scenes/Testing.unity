@@ -159,17 +159,19 @@ MonoBehaviour:
   trainingManager: {fileID: 1521086773}
   tierClassifier: {fileID: 1696714125}
   metaEpisodeLength: 10
-  maxStepChange: 0.2
   closenessBonusWeight: 0.5
   blowoutPenalty: 0
   blowoutHPThreshold: 0.8
   extremeValuePenaltyWeight: 0.2
+  bulletCountResponseScale: 1
+  enemySpeedSmoothRate: 0.25
   rewardWindowSize: 10
   debugLogging: 1
   currentNormalizedFireRate: 0.5
   currentNormalizedBulletSpeed: 0.5
   currentNormalizedSpreadAngle: 0.5
   currentNormalizedEnemySpeed: 0.5
+  smoothedEnemySpeed: 0.5
 --- !u!114 &24370107
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -192,7 +194,7 @@ MonoBehaviour:
     VectorActionDescriptions: []
     VectorActionSpaceType: 1
     hasUpgradedBrainParametersWithActionSpec: 1
-  m_Model: {fileID: 5022602860645237092, guid: 2a5bbde708178a74db5fd668d41783b5, type: 3}
+  m_Model: {fileID: 5022602860645237092, guid: 7078eb6a038d3ed43b70497645f9ae72, type: 3}
   m_InferenceDevice: 0
   m_BehaviorType: 0
   m_BehaviorName: DDAAgent
@@ -899,11 +901,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bb890ec9775445447befcf07a8704c52, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  trainingCondition: 2
+  trainingCondition: 3
   player: {fileID: 1966290677}
   enemy: {fileID: 1757018049}
   episodeTimeLimit: 60
   maxEpisodes: 0
+  trainingTimeScale: 20
   currentEpisodeTime: 0
   episodeCount: 0
   playerDamageDealt: 0
@@ -1209,6 +1212,7 @@ MonoBehaviour:
   predictionWindow: 0.3
   dangerPenalty: 0.008
   maxDangerPenaltyPerStep: 0.03
+  logThreatDiagnostics: 0
   maxHealth: 10
   currentHealth: 10
   survivalReward: 0.001
@@ -1251,7 +1255,7 @@ MonoBehaviour:
     - Move Y
     VectorActionSpaceType: 1
     hasUpgradedBrainParametersWithActionSpec: 1
-  m_Model: {fileID: 5022602860645237092, guid: 5e057199daacebe4296748ec8cfa2234, type: 3}
+  m_Model: {fileID: 5022602860645237092, guid: ea2b773a58cf09e4989f388d4cea3420, type: 3}
   m_InferenceDevice: 0
   m_BehaviorType: 2
   m_BehaviorName: EnemyAgent
@@ -1272,7 +1276,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1966290677}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fa4005261105ec649b9d797b4338d9ce, type: 3}
   m_Name: 

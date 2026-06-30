@@ -48,9 +48,9 @@ public class DDAAgent : Agent
     public float extremeValuePenaltyWeight = 0.08f;
 
     [Tooltip("How strongly bullet count tracks the average of the 3 bullet-behaviour multipliers. " +
-             "0 = always 1 bullet, 1 = full 1-2x range tracking. Default 0.5 = gentle scaling.")]
+             "0 = always 1 bullet, 1 = full 1-2x range tracking. Default 1.0 = full scaling.")]
     [Range(0f, 1f)]
-    public float bulletCountResponseScale = 0.5f;
+    public float bulletCountResponseScale = 1.0f;
 
     [Tooltip("How much enemy speed moves toward the agent's target per episode (0=frozen, 1=instant). " +
              "Lower values create a smooth lag that prevents jarring speed snaps.")]
@@ -89,6 +89,7 @@ public class DDAAgent : Agent
         // Initialize with Medium tier bounds
         currentTier = tierClassifier != null ? tierClassifier.CurrentTier : DifficultyTier.Medium;
         currentBounds = DifficultyProfile.GetBoundsForTier(currentTier);
+        smoothedEnemySpeed = Mathf.Lerp(currentBounds.enemySpeedMin, currentBounds.enemySpeedMax, currentNormalizedEnemySpeed);
     }
 
     public override void OnEpisodeBegin()
@@ -98,6 +99,13 @@ public class DDAAgent : Agent
         // Refresh tier and bounds at meta-episode start (multipliers persist for training continuity)
         currentTier = tierClassifier != null ? tierClassifier.CurrentTier : DifficultyTier.Medium;
         currentBounds = DifficultyProfile.GetBoundsForTier(currentTier);
+
+        // Ensure smoothedEnemySpeed is initialized to a valid absolute speed value
+        float targetSpeed = Mathf.Lerp(currentBounds.enemySpeedMin, currentBounds.enemySpeedMax, currentNormalizedEnemySpeed);
+        if (smoothedEnemySpeed < 0.1f)
+        {
+            smoothedEnemySpeed = targetSpeed;
+        }
 
         // Request the first difficulty decision for the beginning of the meta-episode
         RequestDecision();
@@ -166,8 +174,10 @@ public class DDAAgent : Agent
         currentNormalizedSpreadAngle = (a2 + 1f) / 2f;
         currentNormalizedEnemySpeed  = (a3 + 1f) / 2f;
 
-        // Smooth enemy speed toward the agent's target — prevents jarring per-episode snaps.
-        smoothedEnemySpeed = Mathf.Lerp(smoothedEnemySpeed, currentNormalizedEnemySpeed, enemySpeedSmoothRate);
+        // Target speed multiplier based on current bounds and agent action output
+        float targetSpeed = Mathf.Lerp(currentBounds.enemySpeedMin, currentBounds.enemySpeedMax, currentNormalizedEnemySpeed);
+        // Smooth enemy speed toward the target — prevents jarring per-episode snaps.
+        smoothedEnemySpeed = Mathf.Lerp(smoothedEnemySpeed, targetSpeed, enemySpeedSmoothRate);
 
         // Bullet count is derived from the average of the 3 bullet-behaviour multipliers
         // and scaled by the current tier difficulty so it increases across tiers.
@@ -181,7 +191,7 @@ public class DDAAgent : Agent
         profile.bulletSpeedMultiplier = currentBulletSpeed;
         profile.spreadAngleMultiplier = currentSpreadAngle;
         // Use the smoothed speed so the player perceives a gradual change.
-        profile.enemySpeedMultiplier  = Mathf.Lerp(currentBounds.enemySpeedMin, currentBounds.enemySpeedMax, smoothedEnemySpeed);
+        profile.enemySpeedMultiplier  = smoothedEnemySpeed;
 
         // Keep spawn/powerup multipliers at the tier midpoint.
         float tierMidDifficulty = ((int)currentTier * 0.25f) + 0.125f;

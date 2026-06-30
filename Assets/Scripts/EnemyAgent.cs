@@ -129,6 +129,7 @@ public class EnemyAgent : Agent, IDifficultyTunable
     // BUG-05 fix: cache manager reference once in Initialize() instead of FindObjectOfType
     // being called on every OnEpisodeBegin (potentially thousands of times per training run).
     private RLTrainingManager _trainingManager;
+    private Unity.MLAgents.Policies.BehaviorParameters _behaviorParams;
     // BUG-06 fix: cache the bullet array once per step so CollectObservations,
     // ApplyMovementRewards, and the near-miss loop share a single FindGameObjectsWithTag call.
     private GameObject[] _cachedPlayerBullets = new GameObject[0];
@@ -146,6 +147,7 @@ public class EnemyAgent : Agent, IDifficultyTunable
     {
         rb = GetComponent<Rigidbody2D>();
         baseMoveSpeed = moveSpeed;
+        _behaviorParams = GetComponent<Unity.MLAgents.Policies.BehaviorParameters>();
 
         // BUG-05 fix: cache once at initialization
         _trainingManager = FindObjectOfType<RLTrainingManager>();
@@ -237,14 +239,21 @@ public class EnemyAgent : Agent, IDifficultyTunable
         grazedBullets.Clear();
         episodeDamagePenaltyAccum = 0f;
 
-        // If training manager is active, randomize training difficulty to train across speed spectrum
-        // BUG-05 fix: use the cached reference instead of FindObjectOfType every episode.
-        if (_trainingManager != null)
+        // If training manager is active and we are actively training this enemy's movement policy,
+        // randomize training difficulty to train across speed spectrum. Otherwise (inference/DDA),
+        // we do not randomize it and let difficulty profiles govern the speed scalar.
+        bool isEnemyTraining = false;
+        if (_behaviorParams != null)
+        {
+            isEnemyTraining = _behaviorParams.BehaviorType == Unity.MLAgents.Policies.BehaviorType.Default;
+        }
+
+        if (_trainingManager != null && isEnemyTraining)
         {
             currentSpeedScalar = Random.Range(0.2f, 1.0f);
             moveSpeed = baseMoveSpeed * currentSpeedScalar;
         }
-        else
+        else if (_trainingManager == null)
         {
             currentSpeedScalar = 1f;
         }
