@@ -4,7 +4,7 @@ public class EnemyProjectileScript : MonoBehaviour, IDifficultyTunable
 {
     [Header("Projectile Settings")]
     public float speed = 5f;
-    public float lifetime = 3f;
+    public float lifetime = 1.8f;
     public float damage = 1f;
 
     private Vector2 direction;

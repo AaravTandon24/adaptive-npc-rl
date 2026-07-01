@@ -57,6 +57,11 @@ public class DDAAgent : Agent
     [Range(0.05f, 1f)]
     public float enemySpeedSmoothRate = 0.25f;
 
+    [Header("Hybrid DDA Settings")]
+    [Tooltip("How strongly the agent's actions are anchored to the rule-based controller's difficulty tracking (0 = 100% RL, 1 = 100% Rule-Based).")]
+    [Range(0f, 1f)]
+    public float ruleBasedAnchorWeight = 0.6f;
+
     [Tooltip("The window size for computing the win rate used for the step reward")]
     public int rewardWindowSize = 10;
 
@@ -168,11 +173,16 @@ public class DDAAgent : Agent
         float a2 = Mathf.Clamp(actions.ContinuousActions[2], -1f, 1f);
         float a3 = Mathf.Clamp(actions.ContinuousActions[3], -1f, 1f);
 
-        // Apply absolute actions mapped from [-1, 1] to normalized space [0, 1]
-        currentNormalizedFireRate    = (a0 + 1f) / 2f;
-        currentNormalizedBulletSpeed = (a1 + 1f) / 2f;
-        currentNormalizedSpreadAngle = (a2 + 1f) / 2f;
-        currentNormalizedEnemySpeed  = (a3 + 1f) / 2f;
+        // Retrieve rule-based difficulty from controller to act as a feedback anchor
+        float ruleBasedDiff = DanmakuDDAController.Instance != null ? DanmakuDDAController.Instance.currentDifficulty : 0.5f;
+        float bandLow = (int)currentTier * 0.25f;
+        float ruleBasedNorm = Mathf.InverseLerp(bandLow, bandLow + 0.25f, ruleBasedDiff);
+
+        // Apply absolute actions mapped to [0, 1] and blended with the rule-based feedback anchor
+        currentNormalizedFireRate    = Mathf.Lerp((a0 + 1f) / 2f, ruleBasedNorm, ruleBasedAnchorWeight);
+        currentNormalizedBulletSpeed = Mathf.Lerp((a1 + 1f) / 2f, ruleBasedNorm, ruleBasedAnchorWeight);
+        currentNormalizedSpreadAngle = Mathf.Lerp((a2 + 1f) / 2f, ruleBasedNorm, ruleBasedAnchorWeight);
+        currentNormalizedEnemySpeed  = Mathf.Lerp((a3 + 1f) / 2f, ruleBasedNorm, ruleBasedAnchorWeight);
 
         // Target speed multiplier based on current bounds and agent action output
         float targetSpeed = Mathf.Lerp(currentBounds.enemySpeedMin, currentBounds.enemySpeedMax, currentNormalizedEnemySpeed);

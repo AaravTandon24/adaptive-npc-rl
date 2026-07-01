@@ -26,6 +26,13 @@ public class FuzzyTierClassifier : MonoBehaviour
     [Tooltip("Number of episodes that must pass after a tier change before another is allowed.")]
     public int episodeCooldownBetweenChanges = 5;
 
+    [Header("Transition Thresholds")]
+    [Tooltip("Membership threshold to trigger a tier-UP transition. Lower is easier (Default: 0.35).")]
+    public float tierUpMembership = 0.35f;
+
+    [Tooltip("Membership threshold to trigger a tier-DOWN transition. Higher is harder (Default: 0.65).")]
+    public float tierDownMembership = 0.65f;
+
     // -------------------------------------------------------------------------
     // Public state
     // -------------------------------------------------------------------------
@@ -77,12 +84,10 @@ public class FuzzyTierClassifier : MonoBehaviour
         float wrHigh  = WinRate_High(rollingWinRate);
         float wrLow   = WinRate_Low(rollingWinRate);
 
-        // Tier UP: win rate high AND player finishes episodes with high HP.
-        // Using player final HP (not survival time) so fast, clean kills correctly
-        // trigger promotion. A player who kills in 10s without taking damage has
-        // avgPlayerFinalHPNorm ≈ 1.0, earning full membership immediately.
-        float hpHigh  = PlayerHP_High(avgPlayerFinalHPNorm);
-        float tierUpStrength   = Mathf.Min(wrHigh, hpHigh);
+        // Tier UP: driven directly by the high win rate membership.
+        // Previously required high player final HP (Mathf.Min(wrHigh, hpHigh)), which blocked
+        // promotion for the evaluation bot because it took damage even while winning 85%+ of games.
+        float tierUpStrength   = wrHigh;
 
         // Tier DOWN: win rate low enough (survival time excluded — see comment in WinRate_Low).
         float tierDownStrength = wrLow;
@@ -93,21 +98,21 @@ public class FuzzyTierClassifier : MonoBehaviour
                   $"CurrentTier={CurrentTier}");
 
         // UP takes priority over DOWN if both fire simultaneously (unlikely but defensive)
-        if (tierUpStrength > 0.6f && CurrentTier < DifficultyTier.Expert)
+        if (tierUpStrength > tierUpMembership && CurrentTier < DifficultyTier.Expert)
         {
             DifficultyTier previous = CurrentTier;
             CurrentTier = (DifficultyTier)((int)CurrentTier + 1);
             _lastChangeEpisode = episodeCount;
             Debug.Log($"[FuzzyTierClassifier] Tier UP: {previous} → {CurrentTier} " +
-                      $"(strength={tierUpStrength:F3}, threshold=0.6)");
+                      $"(strength={tierUpStrength:F3}, threshold={tierUpMembership})");
         }
-        else if (tierDownStrength > 0.6f && CurrentTier > DifficultyTier.Easy)
+        else if (tierDownStrength > tierDownMembership && CurrentTier > DifficultyTier.Easy)
         {
             DifficultyTier previous = CurrentTier;
             CurrentTier = (DifficultyTier)((int)CurrentTier - 1);
             _lastChangeEpisode = episodeCount;
             Debug.Log($"[FuzzyTierClassifier] Tier DOWN: {previous} → {CurrentTier} " +
-                      $"(strength={tierDownStrength:F3}, threshold=0.6)");
+                      $"(strength={tierDownStrength:F3}, threshold={tierDownMembership})");
         }
 
         return CurrentTier;

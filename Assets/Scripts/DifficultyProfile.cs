@@ -26,13 +26,13 @@ public struct DifficultyProfile
 
     public void Clamp()
     {
-        fireRateMultiplier = Mathf.Clamp(fireRateMultiplier, 0.25f, 2f);
-        bulletSpeedMultiplier = Mathf.Clamp(bulletSpeedMultiplier, 0.25f, 2f);
-        spreadAngleMultiplier = Mathf.Clamp(spreadAngleMultiplier, 0.25f, 2f);
-        spawnIntervalMultiplier = Mathf.Clamp(spawnIntervalMultiplier, 0.25f, 2f);
-        enemySpeedMultiplier = Mathf.Clamp(enemySpeedMultiplier, 0.25f, 2f);
-        powerupSpawnMultiplier = Mathf.Clamp(powerupSpawnMultiplier, 0.25f, 2f);
-        bulletCountMultiplier = Mathf.Clamp(bulletCountMultiplier, 1f, 2f);
+        fireRateMultiplier = Mathf.Clamp(fireRateMultiplier, 0.25f, 3.5f);
+        bulletSpeedMultiplier = Mathf.Clamp(bulletSpeedMultiplier, 0.25f, 3f);
+        spreadAngleMultiplier = Mathf.Clamp(spreadAngleMultiplier, 0.25f, 3f);
+        spawnIntervalMultiplier = Mathf.Clamp(spawnIntervalMultiplier, 0.25f, 3f);
+        enemySpeedMultiplier = Mathf.Clamp(enemySpeedMultiplier, 0.25f, 3f);
+        powerupSpawnMultiplier = Mathf.Clamp(powerupSpawnMultiplier, 0.25f, 3f);
+        bulletCountMultiplier = Mathf.Clamp(bulletCountMultiplier, 1f, 3.5f);
         maxActiveEnemyBullets = Mathf.Clamp(maxActiveEnemyBullets, 0, 300);
     }
 
@@ -40,16 +40,15 @@ public struct DifficultyProfile
     {
         difficulty = Mathf.Clamp01(difficulty);
         DifficultyProfile profile = Default;
-        profile.fireRateMultiplier = Mathf.Lerp(0.55f, 1.65f, difficulty);
-        profile.bulletSpeedMultiplier = Mathf.Lerp(0.65f, 1.45f, difficulty);
-        profile.spreadAngleMultiplier = Mathf.Lerp(0.75f, 1.35f, difficulty);
-        profile.spawnIntervalMultiplier = Mathf.Lerp(1.55f, 0.65f, difficulty);
-        profile.enemySpeedMultiplier = Mathf.Lerp(0.75f, 1.35f, difficulty);
+        profile.fireRateMultiplier = Mathf.Lerp(0.55f, 2.40f, difficulty);
+        profile.bulletSpeedMultiplier = Mathf.Lerp(0.65f, 2.20f, difficulty);
+        profile.spreadAngleMultiplier = Mathf.Lerp(0.75f, 1.80f, difficulty);
+        profile.spawnIntervalMultiplier = Mathf.Lerp(1.55f, 0.50f, difficulty);
+        profile.enemySpeedMultiplier = Mathf.Lerp(0.75f, 1.80f, difficulty);
         profile.powerupSpawnMultiplier = Mathf.Lerp(0.75f, 1.55f, 1f - difficulty);
         // Bullet count scales linearly across the full difficulty range [0,1].
-        // Previously used InverseLerp(0.5, 1.0) which froze bullets at 1x (4 bullets)
-        // for all of Easy and Medium, making count-increase impossible below difficulty 0.5.
-        profile.bulletCountMultiplier = Mathf.Lerp(1f, 2f, difficulty);
+        // Enables up to 3.2x bullet counts at absolute maximum difficulty (Expert).
+        profile.bulletCountMultiplier = Mathf.Lerp(1f, 3.20f, difficulty);
 
         profile.maxActiveEnemyBullets = maxBullets;
         profile.Clamp();

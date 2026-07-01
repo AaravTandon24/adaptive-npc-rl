@@ -32,6 +32,8 @@ public class RLPlayerBot : MonoBehaviour
     public float dodgeDuration      = 0.4f;
     [Tooltip("Minimum distance an enemy bullet must be to trigger a dodge")]
     public float dodgeTriggerRadius = 3.5f;
+    [Tooltip("Cooldown time between consecutive dodges (in seconds)")]
+    public float dodgeCooldown      = 1.5f;
 
     // ── Aiming ───────────────────────────────────────────────────────────────
     [Header("Aiming")]
@@ -77,6 +79,7 @@ public class RLPlayerBot : MonoBehaviour
     private float       nextStateDecision = 0f;
     private Vector2     dodgeDir          = Vector2.zero;
     private float       dodgeEndTime      = 0f;
+    private float       nextDodgeTime     = 0f;
 
     // ── Aim state ────────────────────────────────────────────────────────────
     private float currentAimAngle = 0f;
@@ -109,23 +112,24 @@ public class RLPlayerBot : MonoBehaviour
 
         // Weakened bot — slow movement, poor aim, infrequent firing, late dodge reaction.
         // Goal: ~70-80% win rate on StaticEasy, ~20-30% on StaticHard, ~50% on RuleBasedDDA.
-        moveSpeed        = 3.2f;   // was 4.5 — slower, gets hit more by dense bullet patterns
+        moveSpeed        = 3.6f;   // was 3.0 — faster movement speed
         preferredDistance = 6.0f;
         retreatDistance  = 4.0f;
         approachDistance = 8.0f;
-        dodgeTriggerRadius = 2.5f; // was 3.5 — increased from 1.8f to prevent cheese from slow bullet walls
-
-        // Sluggish aiming with high jitter — misses often, especially vs fast bullets
-        aimSpeed         = 130f;   // was 220
-        aimJitter        = 20f;    // was 8
-        leadPrediction   = 0.05f;  // was 0.15 — almost no predictive aim
-        fireAngleThreshold = 10f;  // was 20 — must be nearly perfectly aimed to fire
-
-        // Longer pauses between bursts — fires much less often overall
+        dodgeTriggerRadius = 2.8f; // was 3.6 — balanced threat detection
+        dodgeCooldown    = 0.65f;  // was 0.4 — balanced dodge recovery
+ 
+        // Calibrated aiming to not be overly perfect
+        aimSpeed         = 180f;   // was 260 — snaps slower to target
+        aimJitter        = 12f;    // was 4 — some unsteadiness
+        leadPrediction   = 0.07f;  // was 0.15 — slight predictive leading
+        fireAngleThreshold = 20f;  // was 10 — fires more easily during rotation
+ 
+        // Calibrated bursts and pauses
         burstMin         = 2;
-        burstMax         = 3;      // was up to 5
-        burstPauseMin    = 0.6f;   // was 0.2
-        burstPauseMax    = 1.8f;   // was 0.5
+        burstMax         = 3;      // was 5
+        burstPauseMin    = 0.4f;   // was 0.2
+        burstPauseMax    = 1.0f;   // was 0.5
 
         botActive = true;
         BeginNewBurst();
@@ -138,6 +142,10 @@ public class RLPlayerBot : MonoBehaviour
         if (!botActive) return;
         if (playerMovement == null) playerMovement = GetComponent<PlayerMovement>();
         if (playerMovement != null) playerMovement.enabled = false;
+
+        // Reset dodge timings for the new episode
+        dodgeEndTime = 0f;
+        nextDodgeTime = 0f;
     }
 
     /// <summary>
@@ -268,13 +276,13 @@ public class RLPlayerBot : MonoBehaviour
         // ── Dodge check: highest priority ────────────────────────────────────
         if (Time.time < dodgeEndTime)
         {
-            ApplyVelocity(dodgeDir * moveSpeed);
+            ApplyVelocity(dodgeDir * moveSpeed * 1.5f); // Dash speed (3.6)
             return;
         }
 
         // Look for the nearest incoming enemy bullet
         GameObject threat = FindNearestIncomingBullet();
-        if (threat != null)
+        if (threat != null && Time.time >= nextDodgeTime)
         {
             // Dodge perpendicular to the bullet's velocity
             Vector2 bulletVel = threat.GetComponent<Rigidbody2D>()?.velocity ?? Vector2.zero;
@@ -288,10 +296,16 @@ public class RLPlayerBot : MonoBehaviour
                 // send the bot into the bullet's path when it arrived from the side.
                 // Dot against -bDir so we choose the perpendicular pointing away from
                 // the direction the bullet is travelling.
-                dodgeDir    = Vector2.Dot(perp1, -bDir) > 0f ? perp1 : perp2;
+                Vector2 rawSidestep = Vector2.Dot(perp1, -bDir) > 0f ? perp1 : perp2;
+                
+                // Active evasion: move away from the bullet source/vector while sidestepping
+                Vector2 awayFromBullet = (rb.position - (Vector2)threat.transform.position).normalized;
+                dodgeDir = (rawSidestep * 0.7f + awayFromBullet * 0.3f).normalized;
+                
                 dodgeEndTime = Time.time + dodgeDuration;
+                nextDodgeTime = dodgeEndTime + dodgeCooldown;
                 state        = MoveState.Dodge;
-                ApplyVelocity(dodgeDir * moveSpeed);
+                ApplyVelocity(dodgeDir * moveSpeed * 1.5f); // Dash speed
                 return;
             }
         }
@@ -334,7 +348,7 @@ public class RLPlayerBot : MonoBehaviour
                 break;
         }
 
-        ApplyVelocity(desired * moveSpeed);
+        ApplyVelocity(desired * moveSpeed * 0.65f); // Focus speed (1.95)
     }
 
     void ApplyVelocity(Vector2 vel)

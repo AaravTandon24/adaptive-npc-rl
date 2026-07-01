@@ -8,6 +8,7 @@ public enum TrainingCondition
 {
     StaticEasy,
     StaticHard,
+    StaticExpert,
     RuleBasedDDA,
     /// <summary>
     /// RL-based DDA using DDAAgent PPO policy. Logs to rl_dda_ppo.csv.
@@ -292,9 +293,15 @@ public class RLTrainingManager : MonoBehaviour
             // CSV has already been written by LogEpisodeStats() above.
             // Notify agents so any in-flight PPO trajectory is finalised cleanly.
             if (trainingCondition == TrainingCondition.RlDDA && ddaAgent != null)
+            {
+                if (DanmakuDDAController.Instance != null)
+                    DanmakuDDAController.Instance.OnEpisodeEnd(episodeCount, capturedPressure);
                 ddaAgent.OnGameEpisodeEnd();
+            }
             else if (DanmakuDDAController.Instance != null)
+            {
                 DanmakuDDAController.Instance.OnEpisodeEnd(episodeCount, capturedPressure);
+            }
             if (enemyAgent != null)
                 enemyAgent.EndEpisode();
             #if UNITY_EDITOR
@@ -308,6 +315,9 @@ public class RLTrainingManager : MonoBehaviour
         // Route based on training condition
         if (trainingCondition == TrainingCondition.RlDDA && ddaAgent != null)
         {
+            // Update the rule-based controller's difficulty tracker first to act as the hybrid anchor
+            if (DanmakuDDAController.Instance != null)
+                DanmakuDDAController.Instance.OnEpisodeEnd(episodeCount, capturedPressure);
             ddaAgent.OnGameEpisodeEnd();
         }
         else if (DanmakuDDAController.Instance != null)
@@ -793,15 +803,24 @@ public class RLTrainingManager : MonoBehaviour
             return;
         }
 
+        if (ddaAgent != null)
+        {
+            ddaAgent.enabled = (trainingCondition == TrainingCondition.RlDDA);
+        }
+
         switch (trainingCondition)
         {
             case TrainingCondition.StaticEasy:
                 dda.enabled = false;
-                ApplyStaticDifficulty(dda, 0f); // 0 = minimum params
+                ApplyStaticDifficulty(dda, 0f); // 0 = minimum params (Easy)
                 break;
             case TrainingCondition.StaticHard:
                 dda.enabled = false;
-                ApplyStaticDifficulty(dda, 1f); // 1 = maximum params
+                ApplyStaticDifficulty(dda, 0.65f); // 0.65 = Hard difficulty (inside the [0.5, 0.75] Hard tier band)
+                break;
+            case TrainingCondition.StaticExpert:
+                dda.enabled = false;
+                ApplyStaticDifficulty(dda, 1f); // 1 = Expert difficulty (maximum extreme params)
                 break;
             case TrainingCondition.RuleBasedDDA:
                 dda.enabled = true;
@@ -831,6 +850,7 @@ public class RLTrainingManager : MonoBehaviour
         {
             TrainingCondition.StaticEasy   => "static_easy.csv",
             TrainingCondition.StaticHard   => "static_hard.csv",
+            TrainingCondition.StaticExpert => "static_expert.csv",
             TrainingCondition.RuleBasedDDA => "rule_based_dda.csv",
             TrainingCondition.RlDDA        => "rl_dda_ppo.csv",
             _                              => "episode_log.csv"
