@@ -165,7 +165,7 @@ MonoBehaviour:
   extremeValuePenaltyWeight: 0.2
   bulletCountResponseScale: 1
   enemySpeedSmoothRate: 0.25
-  ruleBasedAnchorWeight: 0.7
+  ruleBasedAnchorWeight: 0
   rewardWindowSize: 10
   debugLogging: 1
   currentNormalizedFireRate: 0.5
@@ -195,9 +195,9 @@ MonoBehaviour:
     VectorActionDescriptions: []
     VectorActionSpaceType: 1
     hasUpgradedBrainParametersWithActionSpec: 1
-  m_Model: {fileID: 5022602860645237092, guid: 7078eb6a038d3ed43b70497645f9ae72, type: 3}
+  m_Model: {fileID: 5022602860645237092, guid: 41fad221ec67338429fb02bc76c2f558, type: 3}
   m_InferenceDevice: 0
-  m_BehaviorType: 2
+  m_BehaviorType: 0
   m_BehaviorName: DDAAgent
   TeamId: 0
   m_UseChildSensors: 1
@@ -910,12 +910,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bb890ec9775445447befcf07a8704c52, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  trainingCondition: 3
+  trainingCondition: 4
   player: {fileID: 1966290677}
   enemy: {fileID: 1757018049}
   episodeTimeLimit: 60
-  maxEpisodes: 500
-  trainingTimeScale: 3
+  maxEpisodes: 0
+  trainingTimeScale: 8
   currentEpisodeTime: 0
   episodeCount: 0
   playerDamageDealt: 0
